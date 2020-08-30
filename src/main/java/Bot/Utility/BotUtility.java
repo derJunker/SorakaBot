@@ -10,6 +10,8 @@ import discord4j.core.object.entity.channel.GuildChannel;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.PermissionSet;
 
+import java.util.Objects;
+
 public class BotUtility {
 	/**
 	 * this method checks if a member and a user have the same name and discriminator
@@ -94,5 +96,9 @@ public class BotUtility {
 		String content = createEvent.getMessage().getContent();
 		content = Utility.toAltCase(content);
 		createEvent.getMessage().getChannel().block().createMessage(content).block();
+	}
+
+	public static boolean sameGuildId(Guild g1, Guild g2){
+		return Objects.equals(g1.getId(), g2.getId());
 	}
 }
