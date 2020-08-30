@@ -7,6 +7,8 @@ import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
+import discord4j.core.event.domain.message.ReactionRemoveEmojiEvent;
+import discord4j.core.event.domain.message.ReactionRemoveEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;
@@ -58,7 +60,9 @@ public class SorakaBot {
 																				.collect(Collectors.toList());
 
 		onReady();
-		onReactionAddEvent();
+		onReactionAdd();
+		onReactionDelete();
+		client.getEventDispatcher().on(ReactionRemoveEmojiEvent.class).subscribe(event -> System.out.println("ReactionRemoveEmoji"));
 		onGuildEvent();
 
 		client.onDisconnect().block();
@@ -67,13 +71,17 @@ public class SorakaBot {
 	/**
 	 * this method triggers when a reaction get added
 	 */
-	private static void onReactionAddEvent() {
+	private static void onReactionAdd() {
 		client.getEventDispatcher().on(ReactionAddEvent.class)
 				.subscribe(event -> {
 					//check if it is a joinChannel
 					Channel joinChannel = event.getChannel().block();
 					//if the reaction was added somewhere not in a joinChannel, then its not important
 					if(!joinChannels.contains(joinChannel))
+						return;
+					//check if the member is the bot then also cancel this method
+					Member member = event.getMember().get();
+					if(BotUtility.sameUser(member, self))
 						return;
 
 					//get the emoji as a string
@@ -86,11 +94,41 @@ public class SorakaBot {
 						return;
 					}
 					//now assign the role to the user
-					Member member = event.getMember().get();
 					member.addRole(role.getId()).block();
 
 					//TODO - log new role
-					System.out.println("assigned role: " + role.getName());
+					System.out.println("assigned role: " + role.getName() + " to: " + member.getNickname().orElse(member.getUsername()));
+				});
+	}
+
+	private static void onReactionDelete(){
+		client.getEventDispatcher().on(ReactionRemoveEvent.class)
+				.subscribe(event -> {
+					//check if it is a joinChannel
+					Channel joinChannel = event.getChannel().block();
+					//if the reaction was removed somewhere not in a joinChannel, then its not important
+					if(!joinChannels.contains(joinChannel))
+						return;
+
+					//get the emoji as a string
+					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
+					//and now get the role connected to that emoji, also check if there was an entry
+					Role role = emojiRoles.get(emoji);
+
+					Guild guild = event.getGuild().block();
+					Member member = guild.getMemberById(event.getUserId()).block();
+
+					//check if there is no role assigned to the emoji or the user doesn't have the role
+					if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
+						//TODO - log not confirmed role
+						return;
+					}
+
+					//now assign the role to the user
+					member.removeRole(role.getId()).block();
+
+					//TODO - log new role
+					System.out.println("removed role: " + role.getName() + " from: " + member.getNickname().orElse(member.getUsername()));
 				});
 	}
 
@@ -139,7 +177,7 @@ public class SorakaBot {
 		//
 		//adding the the permissions of the everyone role (they can just read messages and add reactions
 		role = guild.getEveryoneRole().block();
-		allowed = /*PermissionSet.of(Permission.VIEW_CHANNEL, Permission.READ_MESSAGE_HISTORY);*/ PermissionSet.none();
+		allowed = PermissionSet.of(Permission.VIEW_CHANNEL, Permission.READ_MESSAGE_HISTORY);
 		denied = PermissionSet.all();
 		PermissionOverwrite everyoneRolePermissions = PermissionOverwrite.forRole(role.getId(), allowed, denied);
 		permissions.add(everyoneRolePermissions);
