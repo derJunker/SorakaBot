@@ -2,3 +2,7 @@
 /.gradle/
 /build/
 /build/classes/java/main/
+/build.gradle
+/gradlew
+/gradlew.bat
+/settings.gradle
