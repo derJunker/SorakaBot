@@ -6,8 +6,10 @@ import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
+import discord4j.core.event.domain.message.ReactionAddEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.reaction.ReactionEmoji;
@@ -24,9 +26,16 @@ public class SorakaBot {
 
 	//loaded static variables
 	private static List<GuildMessageChannel> joinChannels = new ArrayList<>();
+	private static Map<String, Role> emojiRoles = new HashMap<>();
 
+	//emojis
 	private final static String GAMER_EMOJI = "\uD83C\uDFAE";
 	private final static String STUDENT_EMOJI = "\uD83D\uDCDA";
+
+	//the names of the roles
+	private final static String GAMER_NAME = "Elite-Gamer";
+	private final static String STUDENT_NAME = "Student";
+
 
 	//the client
 	private static GatewayDiscordClient client;
@@ -36,6 +45,8 @@ public class SorakaBot {
 				.build()
 				.login()
 				.block();
+
+		fillEmojisToRoles();
 
 		//loading the data
 		Map<String, String> snowflakeMap = MemManager.loadJoinChannels();
@@ -47,9 +58,40 @@ public class SorakaBot {
 																				.collect(Collectors.toList());
 
 		onReady();
+		onReactionAddEvent();
 		onGuildEvent();
 
 		client.onDisconnect().block();
+	}
+
+	/**
+	 * this method triggers when a reaction get added
+	 */
+	private static void onReactionAddEvent() {
+		client.getEventDispatcher().on(ReactionAddEvent.class)
+				.subscribe(event -> {
+					//check if it is a joinChannel
+					Channel joinChannel = event.getChannel().block();
+					//if the reaction was added somewhere not in a joinChannel, then its not important
+					if(!joinChannels.contains(joinChannel))
+						return;
+
+					//get the emoji as a string
+					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
+					//and now get the role connected to that emoji, also check if there was an entry
+					Role role = emojiRoles.get(emoji);
+					//check if there is no role assigned to the emoji
+					if(role == null){
+						//TODO - log not confirmed role
+						return;
+					}
+					//now assign the role to the user
+					Member member = event.getMember().get();
+					member.addRole(role.getId()).block();
+
+					//TODO - log new role
+					System.out.println("assigned role: " + role.getName());
+				});
 	}
 
 	/**
@@ -150,4 +192,27 @@ public class SorakaBot {
 		msg.addReaction(ReactionEmoji.unicode(STUDENT_EMOJI)).subscribe();
 	}
 
+	/**
+	 * this method fills all the emojis to the right roles
+	 */
+	private static void fillEmojisToRoles(){
+		//for every guild add the roles
+		client.getGuilds().toStream()
+				.forEach(guild -> {
+					//do it both for the gamer role as well as the student role
+					//first get the role with the right name
+					Role gamer = BotUtility.getRoleByName(GAMER_NAME, guild);
+					if(gamer != null){
+						//then add the right emoji to the role into the map
+						emojiRoles.put(GAMER_EMOJI, gamer);
+					}
+
+					//first get the role with the right name
+					Role student = BotUtility.getRoleByName(STUDENT_NAME, guild);
+					if(student != null){
+						//then add the right emoji to the role into the map
+						emojiRoles.put(STUDENT_EMOJI, student);
+					}
+				});
+	}
  }
