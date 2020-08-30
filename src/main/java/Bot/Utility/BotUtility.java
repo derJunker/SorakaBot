@@ -1,16 +1,20 @@
 package Bot.Utility;
 
+import discord4j.common.util.Snowflake;
+import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Role;
 import discord4j.core.object.entity.User;
+import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildChannel;
+import discord4j.core.object.entity.channel.GuildMessageChannel;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.PermissionSet;
 
-import java.util.Objects;
+import java.util.*;
 
 public class BotUtility {
 	/**
@@ -100,5 +104,29 @@ public class BotUtility {
 
 	public static boolean sameGuildId(Guild g1, Guild g2){
 		return Objects.equals(g1.getId(), g2.getId());
+	}
+
+	/**
+	 * this method converts a map of ids into a list of guildChannels
+	 * @param guildChannelMap (guild id, channel id) both as strings
+	 * @param client the client, to get the guilds by id
+	 * @return returns the list
+	 */
+	public static List<GuildChannel> idMapToGuildChannels(Map<String, String> guildChannelMap, GatewayDiscordClient client){
+		//now converting it into a list of channels
+		List<GuildChannel> joinChannels = new ArrayList<>();
+		guildChannelMap.forEach((guildId, channelId) -> {
+			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
+			if(optionalGuild.isEmpty()){
+				return;
+			}
+			Guild guild = optionalGuild.get();
+
+			GuildChannel joinChannel = guild.getChannels().filter(channel -> channel.getId().equals(Snowflake.of(channelId))).blockFirst();
+
+			if(joinChannel != null)
+				joinChannels.add(joinChannel);
+		});
+		return joinChannels;
 	}
 }

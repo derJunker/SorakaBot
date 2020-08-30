@@ -5,28 +5,17 @@ import Bot.Utility.MemManager;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
-import discord4j.core.event.domain.guild.GuildEvent;
-import discord4j.core.event.domain.lifecycle.DisconnectEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
-import discord4j.core.event.domain.message.MessageCreateEvent;
-import discord4j.core.event.domain.message.MessageEvent;
-import discord4j.core.event.domain.message.ReactionAddEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
-import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.reaction.ReactionEmoji;
-import discord4j.discordjson.json.EmojiData;
-import discord4j.discordjson.json.ReactionData;
-import discord4j.rest.service.EmojiService;
 import discord4j.rest.util.Permission;
 import discord4j.rest.util.PermissionSet;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class SorakaBot {
 
@@ -49,10 +38,13 @@ public class SorakaBot {
 				.block();
 
 		//loading the data
-		joinChannels = MemManager.loadJoinChannels();
-		if(joinChannels == null){
-			joinChannels = new ArrayList<>();
+		Map<String, String> snowflakeMap = MemManager.loadJoinChannels();
+		if(snowflakeMap == null){
+			snowflakeMap = new HashMap<>();
 		}
+		joinChannels = BotUtility.idMapToGuildChannels(snowflakeMap, client).stream()
+																				.map(guildChannel -> (GuildMessageChannel) guildChannel)
+																				.collect(Collectors.toList());
 
 		onReady();
 		onGuildEvent();
@@ -95,7 +87,6 @@ public class SorakaBot {
 		if(hasJoinChannel){
 			return;
 		}
-
 		//now if there is no joinChannel, then actually create a join channel with the right permissions
 		//so first set up the permissions
 		//this set will be given to the textChannel as the permissions
@@ -116,7 +107,10 @@ public class SorakaBot {
 		Member botAsMember = self.asMember(guild.getId()).block();
 		//now get the integrated role, if for some reason there isn't one then stop the method
 		//the integrated role is found, by the attribute managed of a role which models exactly that
-		role = botAsMember.getRoles().toStream().filter(Role::isManaged).findFirst().orElse(null);
+		role = botAsMember.getRoles().toStream()
+										.filter(Role::isManaged)
+										.findFirst()
+										.orElse(null);
 		if(role == null){
 			//TODO log it
 			return;
@@ -139,7 +133,12 @@ public class SorakaBot {
 		final String content = "Choose your role: ";
 		Message joinMessage = joinChannel.createMessage(content).block();
 		addRoleEmojis(joinMessage);
-		//now adding the role
+		//finally adding it to the joinChannel list
+		joinChannels.add(joinChannel);
+		//and saving the joinChannels afterwards
+		MemManager.saveJoinChannels(joinChannels);
+		//TODO - log the adding of a joinChannel
+
 	}
 
 	/**
