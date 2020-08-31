@@ -1,8 +1,10 @@
 package Bot.Soraka;
 
+import Bot.Logger.DiscordLogger;
 import Bot.Utility.BotUtility;
 import Bot.Utility.MemManager;
 import Bot.Utility.Utility;
+import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
@@ -14,9 +16,11 @@ import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
+import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.rest.http.client.ClientException;
+import discord4j.rest.json.response.ErrorResponse;
 import discord4j.rest.util.Permission;
 import discord4j.rest.util.PermissionSet;
 
@@ -29,6 +33,8 @@ public class SorakaBot {
 
 	//the bot stores itself as a user
 	private static User self;
+
+	private static DiscordLogger logger;
 
 	//loaded static variables
 	private static List<GuildMessageChannel> joinChannels = new ArrayList<>();
@@ -51,6 +57,12 @@ public class SorakaBot {
 				.build()
 				.login()
 				.block();
+
+		//initiating the logger
+		//first getting the guild "DieLolMains" where the bot should have a logChannel
+		Guild dieLolMains = client.getGuildById(Snowflake.of(273116206314291210L)).block();
+		MessageChannel logChannel = (MessageChannel) BotUtility.getGuildChannelByName("soraka_bot_log", dieLolMains);
+		logger = new DiscordLogger(logChannel);
 
 		fillEmojisToRoles();
 
@@ -96,21 +108,27 @@ public class SorakaBot {
 					//check if there is no role assigned to the emoji
 					//then remove the emoji again
 					if(role == null){
-						//TODO - log not confirmed role
+						logger.log("The emoji: " + emoji + "was added which has no role assigned to it by: " + member.getNickname().orElse(event.getUser().block().getUsername())
+									, guild);
 						//remove the reaction if possible (could be missing permissions if the admin does it (or a role higher than him)
 						try {
 							event.getMessage().block().removeReactions(event.getEmoji()).block();
+
 						}
 						catch(ClientException e){
-							System.out.println(e.getErrorResponse().orElse(null));
+							ErrorResponse resp = e.getErrorResponse().orElse(null);
+							String errorMessage = "no error response";
+							if(resp != null){
+								errorMessage = e.getErrorResponse().get().toString();
+							}
+							logger.log(errorMessage);
 						}
 						return;
 					}
 					//now assign the role to the user
 					member.addRole(role.getId()).block();
 
-					//TODO - log new role
-					System.out.println("assigned role: " + role.getName() + " to: " + member.getNickname().orElse(member.getUsername()));
+					logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 				});
 	}
 
@@ -134,15 +152,15 @@ public class SorakaBot {
 
 					//check if there is no role assigned to the emoji or the user doesn't have the role
 					if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
-						//TODO - log not confirmed role
+						logger.log("The emoji: " + emoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(event.getUser().block().getUsername())
+									, guild);
 						return;
 					}
 
 					//now assign the role to the user
 					member.removeRole(role.getId()).block();
 
-					//TODO - log new role
-					System.out.println("removed role: " + role.getName() + " from: " + member.getNickname().orElse(member.getUsername()));
+					logger.log("removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 				});
 	}
 
@@ -163,6 +181,7 @@ public class SorakaBot {
 	private static void onReady(){
 		client.getEventDispatcher().on(ReadyEvent.class)
 				.subscribe(event -> {
+					logger.log(event);
 					//the bot just saves its user data
 					self = event.getSelf();
 				});
@@ -180,7 +199,7 @@ public class SorakaBot {
 						String currentName = event.getCurrentNickname().orElse(member.getUsername());
 						String oldName = event.getOld().get().getNickname().orElse(member.getUsername());
 						if(!currentName.equals(oldName)){
-							//TODO log the rename event
+							logger.log("Renamed the bot from **" + oldName + "** to **" + currentName + "**", guild);
 							//update the JoinMessage of the guild
 							updateJoinMessage(guild);
 						}
@@ -268,7 +287,7 @@ public class SorakaBot {
 										.findFirst()
 										.orElse(null);
 		if(role == null){
-			//TODO log it
+			logger.log("No integrated role found for the bot", guild);
 			return;
 		}
 		//the permissions of the bot
@@ -293,8 +312,7 @@ public class SorakaBot {
 		joinChannels.add(joinChannel);
 		//and saving the joinChannels afterwards
 		MemManager.saveJoinChannels(joinChannels);
-		//TODO - log the adding of a joinChannel
-
+		logger.log("SorakaBot was added", guild);
 	}
 
 	/**
