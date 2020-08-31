@@ -4,10 +4,7 @@ import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.PermissionOverwrite;
-import discord4j.core.object.entity.Guild;
-import discord4j.core.object.entity.Member;
-import discord4j.core.object.entity.Role;
-import discord4j.core.object.entity.User;
+import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildChannel;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
@@ -128,5 +125,24 @@ public class BotUtility {
 				joinChannels.add(joinChannel);
 		});
 		return joinChannels;
+	}
+
+	/**
+	 * this method gets all the messages of a channel
+	 * @param channel the channel where the messages should get returned
+	 * @return returns all messages in a channel, or an empty list if there are none
+	 */
+	public static List<Message> getMessagesOfChannel(MessageChannel channel){
+		//first get the last message of the channel
+		Snowflake lastMessageId = channel.getLastMessageId().orElse(null);
+		//if there was no last message then the channel is empty so return an empty list
+		if(lastMessageId == null){
+			return new ArrayList<>();
+		}
+		//get all messages before the last message and then add the last message to it
+		List<Message> messages = channel.getMessagesBefore(lastMessageId).collectList().block();
+		messages.add(channel.getMessageById(lastMessageId).block());
+
+		return messages;
 	}
 }
