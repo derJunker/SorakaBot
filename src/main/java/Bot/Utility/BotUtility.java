@@ -5,10 +5,9 @@ import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
-import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildChannel;
-import discord4j.core.object.entity.channel.GuildMessageChannel;
 import discord4j.core.object.entity.channel.MessageChannel;
+import discord4j.rest.http.client.ClientException;
 import discord4j.rest.util.PermissionSet;
 
 import java.util.*;
@@ -134,15 +133,18 @@ public class BotUtility {
 	 */
 	public static List<Message> getMessagesOfChannel(MessageChannel channel){
 		//first get the last message of the channel
-		Snowflake lastMessageId = channel.getLastMessageId().orElse(null);
-		//if there was no last message then the channel is empty so return an empty list
-		if(lastMessageId == null){
+		try {
+			Message lastMessage = channel.getLastMessage().block();
+			//get all messages before the last message and then add the last message to it
+			List<Message> messages = channel.getMessagesBefore(lastMessage.getId()).collectList().block();
+			messages.add(lastMessage);
+
+			return messages;
+		}catch(ClientException e){
+			//if there was no last message then the channel is empty so return an empty list
 			return new ArrayList<>();
 		}
-		//get all messages before the last message and then add the last message to it
-		List<Message> messages = channel.getMessagesBefore(lastMessageId).collectList().block();
-		messages.add(channel.getMessageById(lastMessageId).block());
 
-		return messages;
+
 	}
 }

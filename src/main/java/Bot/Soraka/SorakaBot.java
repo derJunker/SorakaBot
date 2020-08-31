@@ -7,17 +7,17 @@ import Bot.Utility.Utility;
 import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
+import discord4j.core.event.domain.channel.TextChannelDeleteEvent;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
 import discord4j.core.event.domain.guild.MemberUpdateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
+import discord4j.core.event.domain.message.MessageDeleteEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
+import discord4j.core.event.domain.message.ReactionRemoveAllEvent;
 import discord4j.core.event.domain.message.ReactionRemoveEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
-import discord4j.core.object.entity.channel.Channel;
-import discord4j.core.object.entity.channel.GuildMessageChannel;
-import discord4j.core.object.entity.channel.MessageChannel;
-import discord4j.core.object.entity.channel.TextChannel;
+import discord4j.core.object.entity.channel.*;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.rest.http.client.ClientException;
 import discord4j.rest.json.response.ErrorResponse;
@@ -36,11 +36,16 @@ public class SorakaBot {
 
 	private static DiscordLogger logger;
 
-	//loaded static variables
+	//this list stores all channels which are so called joinChannels
+	//these channels are unique to a server, and there the bot writes a message
+	//used to self assign roles via reactions
 	private static List<GuildMessageChannel> joinChannels = new ArrayList<>();
-	private static Map<Guild, HashMap<String, Role>> emojiRoles = new HashMap<>();
+
+	//this map stores links between emojis and the associated roles, by Guild
+	private static Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
 
 	//emojis
+	//currently hardcoded
 	private final static String GAMER_EMOJI = "\uD83C\uDFAE";
 	private final static String STUDENT_EMOJI = "\uD83D\uDCDA";
 
@@ -67,18 +72,27 @@ public class SorakaBot {
 		fillEmojisToRoles();
 
 		//loading the data
+		//loading all the joinChannels,
+		//these are stored by a map of the GuildId and the channelId to correctly find them
+		//after loading the map simply match the guildId and channelId to the right channel
 		Map<String, String> snowflakeMap = MemManager.loadJoinChannels();
+		//if the file wasn't found make a new HashMap
 		if(snowflakeMap == null){
 			snowflakeMap = new HashMap<>();
 		}
+		//match it up
 		joinChannels = BotUtility.idMapToGuildChannels(snowflakeMap, client).stream()
+																				//also cast the Channels to GuildMessageChannels
 																				.map(guildChannel -> (GuildMessageChannel) guildChannel)
 																				.collect(toList());
 
 		onReady();
 		onReactionAdd();
-		onReactionDelete();
+		onReactionRemove();
+		onReactionRemoveAll();
 		onMemberUpdate();
+		onMessageDelete();
+		onTextChannelDelete();
 		onGuildEvent();
 
 		client.onDisconnect().block();
@@ -97,14 +111,18 @@ public class SorakaBot {
 						return;
 					//check if the member is the bot then also cancel this method
 					Member member = event.getMember().get();
-					if(BotUtility.sameUser(member, self))
+					if(BotUtility.sameUser(self, member))
 						return;
 
 					//get the emoji as a string
 					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
 					//and now get the role connected to that emoji, also check if there was an entry
 					Guild guild = event.getGuild().block();
-					Role role = emojiRoles.get(guild).get(emoji);
+					Map<String, Role> emojiMapForGuild = emojiRoles.get(guild);
+					Role role = null;
+					if(emojiMapForGuild != null)
+						role = emojiMapForGuild.get(emoji);
+
 					//check if there is no role assigned to the emoji
 					//then remove the emoji again
 					if(role == null){
@@ -132,7 +150,10 @@ public class SorakaBot {
 				});
 	}
 
-	private static void onReactionDelete(){
+	/**
+	 * when a reaction gets removed
+	 */
+	private static void onReactionRemove(){
 		client.getEventDispatcher().on(ReactionRemoveEvent.class)
 				.subscribe(event -> {
 					//check if it is a joinChannel
@@ -160,7 +181,20 @@ public class SorakaBot {
 					//now assign the role to the user
 					member.removeRole(role.getId()).block();
 
-					logger.log("removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+					logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+				});
+	}
+
+	/**
+	 * when all reactions get removed from a message
+	 */
+	private static void onReactionRemoveAll(){
+		client.getEventDispatcher().on(ReactionRemoveAllEvent.class)
+				.subscribe(event -> {
+					MessageChannel channel = event.getChannel().block();
+					//this is to check if a person removed the reactions from the joinMessage
+					//if so then the joinMessage can't be found anymore (no reactions) so create a new one
+					ifAbsentCreateJoinMessage(channel);
 				});
 	}
 
@@ -187,6 +221,9 @@ public class SorakaBot {
 				});
 	}
 
+	/**
+	 * what happens when the nickname of a member gets changed or the member gets a new role
+	 */
 	private static void onMemberUpdate(){
 		client.getEventDispatcher().on(MemberUpdateEvent.class)
 				.subscribe(event -> {
@@ -207,16 +244,78 @@ public class SorakaBot {
 				});
 	}
 
+	/**
+	 * what happens when a message gets deleted
+	 */
+	private static void onMessageDelete(){
+		client.getEventDispatcher().on(MessageDeleteEvent.class)
+				.subscribe(event -> {
+					MessageChannel channel = event.getChannel().block();
+					//check if the message deleted was the joinMessage of the joinChannel
+					//if so then just create it again
+					ifAbsentCreateJoinMessage(channel);
+				});
+	}
+
+	/**
+	 * what happens when a TextChannel is deleted
+	 */
+	private static void onTextChannelDelete(){
+		client.getEventDispatcher().on(TextChannelDeleteEvent.class)
+				.subscribe(event ->{
+					//check if the channel deleted was a joinChannel, if so then create a new joinChannel
+					GuildMessageChannel joinChannel = event.getChannel();
+					if(joinChannels.contains(joinChannel)){
+						joinChannels.remove(joinChannel);
+						Guild guild = joinChannel.getGuild().block();
+						createJoinChannel(guild);
+						logger.log("joinChannel created", guild);
+					}
+				});
+	}
+
+	/**
+	 * this method adds a joinMessage to a channel If the channel is a joinChannel, and there is no joinMessage already
+	 * @param channel the channel where to create a joinMessage
+	 */
+	private static void ifAbsentCreateJoinMessage(MessageChannel channel){
+		if(joinChannels.contains(channel)){
+			GuildMessageChannel joinChannel = (GuildMessageChannel) channel;
+			if(findJoinMessage(joinChannel) == null){
+				createJoinMessage(joinChannel);
+				logger.log("New joinMessage created", joinChannel.getGuild().block());
+			}
+		}
+	}
+
+	/**
+	 * this method updates the joinMessage of the joinChannel, by editing in an updated version of the context
+	 * e.g.: when the amount of roles changed
+	 * @param guild the guild where the joinChannel is
+	 */
 	private static void updateJoinMessage(Guild guild) {
 		//getting the joinChannel
-		GuildMessageChannel joinChannel = guild.getChannels()
-				.filter(channel -> channel instanceof GuildMessageChannel)
-				.map(channel -> (GuildMessageChannel) channel)
-				.filter(channel -> joinChannels.contains(channel)).blockFirst();
+		GuildMessageChannel joinChannel = findJoinChannel(guild);
+		if(joinChannel == null)
+			return;
 
 		Message joinMessage = findJoinMessage(joinChannel);
-		//updating the message to the correct one
-		joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
+		if(joinMessage != null) {
+			//updating the message to the correct one
+			joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
+		}
+	}
+
+	/**
+	 * this method finds the joinChannel for a guild
+	 * @param guild the guild where the joinChannel should be
+	 * @return the joinChannel, or null if there is no joinChannel
+	 */
+	private static GuildMessageChannel findJoinChannel(Guild guild){
+		return guild.getChannels()
+						.filter(channel -> channel instanceof GuildMessageChannel)
+						.map(channel -> (GuildMessageChannel) channel)
+						.filter(channel -> joinChannels.contains(channel)).blockFirst();
 	}
 
 	/**
@@ -233,7 +332,14 @@ public class SorakaBot {
 		//getting all emojis which are linked to a role, into a list,
 		//which will be used to check if a message is the join message, by checking if the message
 		//as all the guildEmojis
-		List<String> guildEmojis = Utility.getKeys(emojiRoles.get(guild));
+		Map<String, Role> emojiGuildRoles = emojiRoles.get(guild);
+		if(emojiGuildRoles == null) {
+			fillEmojisToRoles();
+			emojiGuildRoles = emojiRoles.get(guild);
+			if(emojiGuildRoles == null)
+				emojiGuildRoles = new HashMap<>();
+		}
+		List<String> guildEmojis = Utility.getKeys(emojiGuildRoles);
 		Message joinMessage = messages.stream()
 								.filter(message -> BotUtility.sameUser(message.getAuthor().get(), self))
 								.filter(message -> {
@@ -250,16 +356,20 @@ public class SorakaBot {
 	}
 
 	/**
-	 * this method creates a joinChannel for a guild if there isnt already one
+	 * this method creates a joinChannel for a guild if there isn't already one
 	 * and saves it
 	 * @param guild the guild where the joinChannel should be created
 	 */
 	private static void createJoinChannel(final Guild guild){
 		//check if the guild already has a joinChannel, if so then just stop the program
-		boolean hasJoinChannel = joinChannels.stream()
-											.map(channel -> channel.getGuild().block())
-											.anyMatch(joinedGuild -> BotUtility.sameGuildId(joinedGuild, guild));
-		if(hasJoinChannel){
+		GuildMessageChannel existingChannel = joinChannels.stream()
+											.filter(channel -> BotUtility.sameGuildId(channel.getGuild().block(), guild))
+											.findFirst().orElse(null);
+		if(existingChannel != null){
+			//if there is a joinChannel also check if there i a joinMessage
+			if(findJoinMessage(existingChannel) == null){
+				createJoinMessage(existingChannel);
+			}
 			return;
 		}
 		//now if there is no joinChannel, then actually create a join channel with the right permissions
@@ -298,21 +408,26 @@ public class SorakaBot {
 		permissions.add(botPermissions);
 
 		//finally making a new textChannel, with the name "join" and the right permissions
-		TextChannel joinChannel = guild.createTextChannel(textChannel -> {
-																		textChannel
+		GuildMessageChannel joinChannel = guild.createTextChannel(textChannel -> textChannel
 																				.setName("join")
-																				.setPermissionOverwrites(permissions);
-																	}).block();
+																				.setPermissionOverwrites(permissions)).block();
 
-		//also
-		final String content = makeJoinMessageContent(guild);
-		Message joinMessage = joinChannel.createMessage(content).block();
-		addRoleEmojis(joinMessage);
+		//now send the message
+		createJoinMessage(joinChannel);
 		//finally adding it to the joinChannel list
 		joinChannels.add(joinChannel);
 		//and saving the joinChannels afterwards
 		MemManager.saveJoinChannels(joinChannels);
-		logger.log("SorakaBot was added", guild);
+	}
+
+	/**
+	 * this method creates the join message in a channel
+	 * @param joinChannel the channel where the message should be created
+	 */
+	private static void createJoinMessage(GuildMessageChannel joinChannel){
+		Guild guild = joinChannel.getGuild().block();
+		final String content = makeJoinMessageContent(guild);
+		joinChannel.createMessage(content).subscribe(message -> addRoleEmojis(message));
 	}
 
 	/**
@@ -321,16 +436,17 @@ public class SorakaBot {
 	 */
 	private static String makeJoinMessageContent(Guild guild){
 		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+
 		String botNameInGuild = guild.getMemberById(self.getId()).block().getNickname().orElse(self.getUsername());
 		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
-						"this is the join-channel, where you can choose your Roles!\n" +
+						"This is the join-channel, where you can choose your Roles!\n" +
 						"Depending on which roles you choose you unlock different voice and text channels.\n" +
 						"Note that this only works if this bot (**" + botNameInGuild + " [BOT]**) is online!\n" +
 						"Possible roles to choose from are:\n";
-
-		for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
-			content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
-		}
+		if(guildEmojiRoles != null)
+			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
+				content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
+			}
 
 		content += "Just click the emojis below for the right role glhf!";
 		return content;
@@ -346,7 +462,7 @@ public class SorakaBot {
 	}
 
 	/**
-	 * this method fills all the emojis to the right roles
+	 * this method links all the emojis to the right roles
 	 */
 	private static void fillEmojisToRoles(){
 		//for every guild add the roles
