@@ -36,11 +36,16 @@ public class SorakaBot {
 
 	private static DiscordLogger logger;
 
-	//loaded static variables
+	//this list stores all channels which are so called joinChannels
+	//these channels are unique to a server, and there the bot writes a message
+	//used to self assign roles via reactions
 	private static List<GuildMessageChannel> joinChannels = new ArrayList<>();
-	private static Map<Guild, HashMap<String, Role>> emojiRoles = new HashMap<>();
+
+	//this map stores links between emojis and the associated roles, by Guild
+	private static Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
 
 	//emojis
+	//currently hardcoded
 	private final static String GAMER_EMOJI = "\uD83C\uDFAE";
 	private final static String STUDENT_EMOJI = "\uD83D\uDCDA";
 
