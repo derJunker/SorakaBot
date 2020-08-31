@@ -210,7 +210,7 @@ public class SorakaBot {
 																	}).block();
 
 		//also
-		final String content = "Choose your role: ";
+		final String content = getJoinMessageContent(guild);
 		Message joinMessage = joinChannel.createMessage(content).block();
 		addRoleEmojis(joinMessage);
 		//finally adding it to the joinChannel list
@@ -219,6 +219,31 @@ public class SorakaBot {
 		MemManager.saveJoinChannels(joinChannels);
 		//TODO - log the adding of a joinChannel
 
+	}
+
+	/**
+	 * this method makes the message which gets displayed on the joinChannel of the guild
+	 * @param guild the guild where the joinChannel should be
+	 */
+	private static String getJoinMessageContent(Guild guild){
+		Map<String, Role> guildEmojiRoles = getEmojiRolesByGuild(guild);
+		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
+						"this is the join-channel, where you can choose your Roles!\n" +
+						"Depending on which roles you choose you unluck different voice and text channels.\n" +
+						"Possible roles to choose from are:\n";
+
+		for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
+			content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
+		}
+
+		content += "Just click the emojis below for the right role glhf!";
+		return content;
+	}
+
+	private static Map<String, Role> getEmojiRolesByGuild(Guild guild){
+		return emojiRoles.entrySet().stream()
+				.filter(entry -> entry.getValue().getGuild().block().equals(guild))	//get only the entries with the right guild
+				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); //make it back it a map
 	}
 
 	/**
