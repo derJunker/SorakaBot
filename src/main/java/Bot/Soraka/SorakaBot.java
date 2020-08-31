@@ -160,7 +160,7 @@ public class SorakaBot {
 					//now assign the role to the user
 					member.removeRole(role.getId()).block();
 
-					logger.log("removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+					logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 				});
 	}
 
@@ -250,7 +250,7 @@ public class SorakaBot {
 	}
 
 	/**
-	 * this method creates a joinChannel for a guild if there isnt already one
+	 * this method creates a joinChannel for a guild if there isn't already one
 	 * and saves it
 	 * @param guild the guild where the joinChannel should be created
 	 */
@@ -298,21 +298,28 @@ public class SorakaBot {
 		permissions.add(botPermissions);
 
 		//finally making a new textChannel, with the name "join" and the right permissions
-		TextChannel joinChannel = guild.createTextChannel(textChannel -> {
-																		textChannel
+		TextChannel joinChannel = guild.createTextChannel(textChannel -> textChannel
 																				.setName("join")
-																				.setPermissionOverwrites(permissions);
-																	}).block();
+																				.setPermissionOverwrites(permissions)).block();
 
-		//also
+		//now send the message
+		createJoinMessage(joinChannel);
+		//finally adding it to the joinChannel list
+		joinChannels.add(joinChannel);
+		logger.log("SorakaBot was added", guild);
+		//and saving the joinChannels afterwards
+		MemManager.saveJoinChannels(joinChannels);
+	}
+
+	/**
+	 * this method creates the join message in a channel
+	 * @param joinChannel the channel where the message should be created
+	 */
+	private static void createJoinMessage(TextChannel joinChannel){
+		Guild guild = joinChannel.getGuild().block();
 		final String content = makeJoinMessageContent(guild);
 		Message joinMessage = joinChannel.createMessage(content).block();
 		addRoleEmojis(joinMessage);
-		//finally adding it to the joinChannel list
-		joinChannels.add(joinChannel);
-		//and saving the joinChannels afterwards
-		MemManager.saveJoinChannels(joinChannels);
-		logger.log("SorakaBot was added", guild);
 	}
 
 	/**
