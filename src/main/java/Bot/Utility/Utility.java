@@ -3,6 +3,7 @@ package Bot.Utility;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class Utility {
@@ -55,5 +56,17 @@ public class Utility {
 			reversed.add(list.get(i));
 		}
 		return reversed;
+	}
+
+	/**
+	 * this method gets the keys of a map
+	 * @param map the map
+	 * @param <T> the type of the object
+	 * @return returns all the keys of the map
+	 */
+	public static <T, V> List<T> getKeys(Map<T, V> map){
+		final List<T> list = new LinkedList<>();
+		map.entrySet().forEach(entry -> list.add(entry.getKey()));
+		return list;
 	}
 }
