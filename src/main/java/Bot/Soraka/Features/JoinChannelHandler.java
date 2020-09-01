@@ -58,7 +58,7 @@ public class JoinChannelHandler {
 
 	/**
 	 * this method creates a joinChannel for a guild if there isn't already one
-	 * and saves it
+	 * and add it to the list of joinChannels
 	 * @param guild the guild where the joinChannel should be created
 	 */
 	public void createJoinChannel(final Guild guild){
@@ -67,7 +67,8 @@ public class JoinChannelHandler {
 				.filter(channel -> BotUtility.sameGuildId(channel.getGuild().block(), guild))
 				.findFirst().orElse(null);
 		if(existingChannel != null){
-			//if there is a joinChannel also check if there i a joinMessage
+			//if there is a joinChannel also check if there is a joinMessage
+			//if not create one
 			if(findJoinMessage(existingChannel) == null){
 				createJoinMessage(existingChannel);
 			}
@@ -119,28 +120,6 @@ public class JoinChannelHandler {
 		joinChannels.add(joinChannel);
 		//and saving the joinChannels afterwards
 		MemManager.saveJoinChannels(joinChannels, client);
-	}
-
-	/**
-	 * this method makes the message which gets displayed on the joinChannel of the guild
-	 * @param guild the guild where the joinChannel should be
-	 */
-	private String makeJoinMessageContent(Guild guild){
-		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
-
-		String botNameInGuild = guild.getMemberById(SorakaBot.getSelf().getId()).block().getNickname().orElse(SorakaBot.getSelf().getUsername());
-		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
-				"This is the join-channel, where you can choose your Roles!\n" +
-				"Depending on which roles you choose you unlock different voice and text channels.\n" +
-				"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
-				"Possible roles to choose from are:\n";
-		if(guildEmojiRoles != null)
-			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
-				content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
-			}
-
-		content += "Just click the emojis below for the right role glhf!";
-		return content;
 	}
 
 	/**
@@ -248,6 +227,28 @@ public class JoinChannelHandler {
 			//updating the message to the correct one
 			joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
 		}
+	}
+
+	/**
+	 * this method makes the message which gets displayed on the joinChannel of the guild
+	 * @param guild the guild where the joinChannel should be
+	 */
+	private String makeJoinMessageContent(Guild guild){
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+
+		String botNameInGuild = guild.getMemberById(SorakaBot.getSelf().getId()).block().getNickname().orElse(SorakaBot.getSelf().getUsername());
+		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
+				"This is the join-channel, where you can choose your Roles!\n" +
+				"Depending on which roles you choose you unlock different voice and text channels.\n" +
+				"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
+				"Possible roles to choose from are:\n";
+		if(guildEmojiRoles != null)
+			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
+				content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
+			}
+
+		content += "Just click the emojis below for the right role glhf!";
+		return content;
 	}
 
 	//--------------------------------------end: joinMessage-related--------------------------------------
