@@ -71,20 +71,9 @@ public class SorakaBot {
 
 		fillEmojisToRoles();
 
-		//loading the data
-		//loading all the joinChannels,
-		//these are stored by a map of the GuildId and the channelId to correctly find them
-		//after loading the map simply match the guildId and channelId to the right channel
-		Map<String, String> snowflakeMap = MemManager.loadJoinChannels();
-		//if the file wasn't found make a new HashMap
-		if(snowflakeMap == null){
-			snowflakeMap = new HashMap<>();
-		}
-		//match it up
-		joinChannels = BotUtility.idMapToGuildChannels(snowflakeMap, client).stream()
-																				//also cast the Channels to GuildMessageChannels
-																				.map(guildChannel -> (GuildMessageChannel) guildChannel)
-																				.collect(toList());
+		joinChannels = MemManager.loadJoinChannels(client);
+
+
 
 		onReady();
 		onReactionAdd();
@@ -417,7 +406,7 @@ public class SorakaBot {
 		//finally adding it to the joinChannel list
 		joinChannels.add(joinChannel);
 		//and saving the joinChannels afterwards
-		MemManager.saveJoinChannels(joinChannels);
+		MemManager.saveJoinChannels(joinChannels, client);
 	}
 
 	/**

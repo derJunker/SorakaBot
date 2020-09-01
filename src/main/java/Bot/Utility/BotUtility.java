@@ -102,29 +102,7 @@ public class BotUtility {
 		return Objects.equals(g1.getId(), g2.getId());
 	}
 
-	/**
-	 * this method converts a map of ids into a list of guildChannels
-	 * @param guildChannelMap (guild id, channel id) both as strings
-	 * @param client the client, to get the guilds by id
-	 * @return returns the list
-	 */
-	public static List<GuildChannel> idMapToGuildChannels(Map<String, String> guildChannelMap, GatewayDiscordClient client){
-		//now converting it into a list of channels
-		List<GuildChannel> joinChannels = new ArrayList<>();
-		guildChannelMap.forEach((guildId, channelId) -> {
-			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
-			if(optionalGuild.isEmpty()){
-				return;
-			}
-			Guild guild = optionalGuild.get();
 
-			GuildChannel joinChannel = guild.getChannels().filter(channel -> channel.getId().equals(Snowflake.of(channelId))).blockFirst();
-
-			if(joinChannel != null)
-				joinChannels.add(joinChannel);
-		});
-		return joinChannels;
-	}
 
 	/**
 	 * this method gets all the messages of a channel
