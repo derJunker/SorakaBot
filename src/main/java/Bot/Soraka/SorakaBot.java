@@ -18,6 +18,7 @@ import discord4j.core.event.domain.message.ReactionRemoveEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.*;
+import discord4j.core.object.reaction.Reaction;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.rest.http.client.ClientException;
 import discord4j.rest.json.response.ErrorResponse;
@@ -25,6 +26,7 @@ import discord4j.rest.util.Permission;
 import discord4j.rest.util.PermissionSet;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
@@ -43,6 +45,7 @@ public class SorakaBot {
 
 	//this map stores links between emojis and the associated roles, by Guild
 	private static Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
+	private static Map<Guild, Map<String, Member>> emojiReactors = new HashMap<>();
 
 	//emojis
 	//currently hardcoded
@@ -69,22 +72,9 @@ public class SorakaBot {
 		MessageChannel logChannel = (MessageChannel) BotUtility.getGuildChannelByName("soraka_bot_log", dieLolMains);
 		logger = new DiscordLogger(logChannel);
 
+		//normally the emoji get loaded but its currently hardcoded
 		fillEmojisToRoles();
-
-		//loading the data
-		//loading all the joinChannels,
-		//these are stored by a map of the GuildId and the channelId to correctly find them
-		//after loading the map simply match the guildId and channelId to the right channel
-		Map<String, String> snowflakeMap = MemManager.loadJoinChannels();
-		//if the file wasn't found make a new HashMap
-		if(snowflakeMap == null){
-			snowflakeMap = new HashMap<>();
-		}
-		//match it up
-		joinChannels = BotUtility.idMapToGuildChannels(snowflakeMap, client).stream()
-																				//also cast the Channels to GuildMessageChannels
-																				.map(guildChannel -> (GuildMessageChannel) guildChannel)
-																				.collect(toList());
+		joinChannels = MemManager.loadJoinChannels(client);
 
 		onReady();
 		onReactionAdd();
@@ -106,47 +96,11 @@ public class SorakaBot {
 				.subscribe(event -> {
 					//check if it is a joinChannel
 					Channel joinChannel = event.getChannel().block();
-					//if the reaction was added somewhere not in a joinChannel, then its not important
-					if(!joinChannels.contains(joinChannel))
-						return;
-					//check if the member is the bot then also cancel this method
-					Member member = event.getMember().get();
-					if(BotUtility.sameUser(self, member))
-						return;
-
 					//get the emoji as a string
-					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
-					//and now get the role connected to that emoji, also check if there was an entry
-					Guild guild = event.getGuild().block();
-					Map<String, Role> emojiMapForGuild = emojiRoles.get(guild);
-					Role role = null;
-					if(emojiMapForGuild != null)
-						role = emojiMapForGuild.get(emoji);
-
-					//check if there is no role assigned to the emoji
-					//then remove the emoji again
-					if(role == null){
-						logger.log("The emoji: " + emoji + "was added which has no role assigned to it by: " + member.getNickname().orElse(event.getUser().block().getUsername())
-									, guild);
-						//remove the reaction if possible (could be missing permissions if the admin does it (or a role higher than him)
-						try {
-							event.getMessage().block().removeReactions(event.getEmoji()).block();
-
-						}
-						catch(ClientException e){
-							ErrorResponse resp = e.getErrorResponse().orElse(null);
-							String errorMessage = "no error response";
-							if(resp != null){
-								errorMessage = e.getErrorResponse().get().toString();
-							}
-							logger.log(errorMessage);
-						}
-						return;
-					}
-					//now assign the role to the user
-					member.addRole(role.getId()).block();
-
-					logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+					ReactionEmoji emoji = event.getEmoji();
+					Member member = event.getMember().get();
+					Message message = event.getMessage().block();
+					reactionAdded(emoji, member, message);
 				});
 	}
 
@@ -156,32 +110,12 @@ public class SorakaBot {
 	private static void onReactionRemove(){
 		client.getEventDispatcher().on(ReactionRemoveEvent.class)
 				.subscribe(event -> {
-					//check if it is a joinChannel
-					Channel joinChannel = event.getChannel().block();
-					//if the reaction was removed somewhere not in a joinChannel, then its not important
-					if(!joinChannels.contains(joinChannel))
-						return;
-
-					//get the emoji as a string
-					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
-
+					Message message = event.getMessage().block();
+					ReactionEmoji emoji = event.getEmoji();
 					Guild guild = event.getGuild().block();
-					//and now get the role connected to that emoji, also check if there was an entry
-					Role role = emojiRoles.get(guild).get(emoji);
-
 					Member member = guild.getMemberById(event.getUserId()).block();
 
-					//check if there is no role assigned to the emoji or the user doesn't have the role
-					if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
-						logger.log("The emoji: " + emoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(event.getUser().block().getUsername())
-									, guild);
-						return;
-					}
-
-					//now assign the role to the user
-					member.removeRole(role.getId()).block();
-
-					logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+					reactionRemoved(emoji, member, message);
 				});
 	}
 
@@ -218,6 +152,8 @@ public class SorakaBot {
 					logger.log(event);
 					//the bot just saves its user data
 					self = event.getSelf();
+
+					checkJoinReactions();
 				});
 	}
 
@@ -272,6 +208,98 @@ public class SorakaBot {
 						logger.log("joinChannel created", guild);
 					}
 				});
+	}
+
+	/**
+	 * this method simulates a that a reaction has been added
+	 * somebody could've really added a reaction at that point, but it doesn't have to be
+	 * @param emoji the emoji which was added as a reaction
+	 * @param member the person who reacted
+	 * @param message the message on which was reacted
+	 */
+	private static void reactionAdded(ReactionEmoji emoji, Member member, Message message){
+		Channel joinChannel = message.getChannel().block();
+		Guild guild = member.getGuild().block();
+		//if the reaction was added somewhere not in a joinChannel, then its not important
+		if(!joinChannels.contains(joinChannel))
+			return;
+		//if this wasn't the joinMessage
+		if(!message.equals(findJoinMessage((GuildMessageChannel) joinChannel)))
+			return;
+		//check if the member is the bot then also cancel this method
+
+		if(BotUtility.sameUser(self, member))
+			return;
+
+
+		//and now get the role connected to that emoji, also check if there was an entry
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+		Role role = null;
+		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
+		if(guildEmojiRoles != null)
+			role = guildEmojiRoles.get(rawEmoji);
+
+		//check if there is no role assigned to the emoji
+		//then remove the emoji again
+		if(role == null){
+			logger.log("The emoji: " + rawEmoji + "was added which has no role assigned to it by: " + member.getNickname().orElse(member.getUsername())
+					, guild);
+			//remove the reaction if possible (could be missing permissions if the admin does it (or a role higher than him)
+			try {
+				message.removeReactions(emoji).block();
+			}
+			catch(ClientException e){
+				ErrorResponse resp = e.getErrorResponse().orElse(null);
+				String errorMessage = "no error response";
+				if(resp != null){
+					errorMessage = e.getErrorResponse().get().toString();
+				}
+				logger.log(errorMessage);
+			}
+			return;
+		}
+		//now assign the role to the user
+		member.addRole(role.getId()).block();
+
+		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
+		logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+	}
+
+	/**
+	 * this method simulates a that a reaction has been removed
+	 * somebody could've really removed a reaction at that point, but it doesn't have to be
+	 * @param emoji the emoji which was removed as a reaction
+	 * @param member the person who reacted
+	 * @param message the message on which was reacted
+	 */
+	private static void reactionRemoved(ReactionEmoji emoji, Member member, Message message){
+		Guild guild = member.getGuild().block();
+		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
+		//and now get the role connected to that emoji, also check if there was an entry
+		Role role = emojiRoles.get(guild).get(rawEmoji);
+
+		Channel joinChannel = message.getChannel().block();
+
+		//if the reaction was removed somewhere not in a joinChannel, then its not important
+		if(!joinChannels.contains(joinChannel))
+			return;
+		//if this wasn't the joinMessage
+		if(!message.equals(findJoinMessage((GuildMessageChannel) joinChannel)))
+			return;
+
+
+		//check if there is no role assigned to the emoji or the user doesn't have the role
+		if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
+			logger.log("The emoji: " + rawEmoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(member.getUsername())
+					, guild);
+			return;
+		}
+
+		//now assign the role to the user
+		member.removeRole(role.getId()).block();
+
+		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
+		logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 	}
 
 	/**
@@ -348,11 +376,23 @@ public class SorakaBot {
 																			.stream()
 																			.filter(reaction -> reaction.getEmoji().asUnicodeEmoji().isPresent())
 																			.map(reaction -> reaction.getEmoji().asUnicodeEmoji().get().getRaw())
-																			.collect(Collectors.toList());
+																			.collect(toList());
 									return messageEmojis.containsAll(guildEmojis);
 								})
 								.findFirst().orElse(null);
 		return joinMessage;
+	}
+
+	/**
+	 * this method finds the joinMessage of a guild (if there is a joinChannel
+ 	 * @param guild the guild where the message should be
+	 * @return the message or null if not found
+	 */
+	private static Message findJoinMessage(Guild guild){
+		GuildMessageChannel joinChannel = findJoinChannel(guild);
+		if(joinChannel == null)
+			return null;
+		return findJoinMessage(joinChannel);
 	}
 
 	/**
@@ -417,7 +457,7 @@ public class SorakaBot {
 		//finally adding it to the joinChannel list
 		joinChannels.add(joinChannel);
 		//and saving the joinChannels afterwards
-		MemManager.saveJoinChannels(joinChannels);
+		MemManager.saveJoinChannels(joinChannels, client);
 	}
 
 	/**
@@ -441,7 +481,7 @@ public class SorakaBot {
 		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
 						"This is the join-channel, where you can choose your Roles!\n" +
 						"Depending on which roles you choose you unlock different voice and text channels.\n" +
-						"Note that this only works if this bot (**" + botNameInGuild + " [BOT]**) is online!\n" +
+						"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
 						"Possible roles to choose from are:\n";
 		if(guildEmojiRoles != null)
 			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
@@ -485,5 +525,104 @@ public class SorakaBot {
 					}
 					emojiRoles.put(guild, guildEmojiRoles);
 				});
+	}
+
+	/**
+	 * this method checks if while the bot was offline, new people reacted to the joinMessages of the guilds
+	 * and if people retracted their reaction, if so then
+	 */
+	private static void checkJoinReactions(){
+		//get the old and current reactors
+		Map<Guild, Map<String, List<Member>>> oldEmojiReactors = MemManager.loadEmojiReactors(client);
+		//if there was no file containing the emojiReactors then stop this
+		if(oldEmojiReactors == null)
+			return;
+		Map<Guild, Map<String, List<Member>>> currentEmojiReactors = getCurrentEmojiReactors();
+
+		//now go through every guild, emoji and check if there is a difference in Members
+		currentEmojiReactors.forEach((guild, emojiReactorsByGuild) -> {
+			//get the message which contains the reactions
+			Message joinMessage = findJoinMessage(guild);
+			//if there is none then return (this should never happens because the currentEmojiReactors just have entries if there is a channel
+			if(joinMessage == null)
+				return;
+
+			emojiReactorsByGuild.forEach((rawEmoji, currentReactors) -> {
+				//get the reactors of the same guild and emoji of the oldReactors
+				Map<String, List<Member>> oldEmojiReactorsByGuild = oldEmojiReactors.get(guild);
+				//if there is no entry simulate an empty entry
+				if(oldEmojiReactorsByGuild == null)
+					oldEmojiReactorsByGuild = new HashMap<>();
+				List<Member> oldReactors = oldEmojiReactorsByGuild.get(rawEmoji);
+				if(oldReactors == null)
+					oldReactors = new LinkedList<>();
+
+				//for every emoji get the differences of the old and current reactors (both ways)
+				//if you take current / old then you get the new added reactors
+				//if you take old / current you get the removed reactors
+				List<Member> newReactors = Utility.listDifference(currentReactors, oldReactors);
+				List<Member> removedReactors = Utility.listDifference(oldReactors, currentReactors);
+				//now simulate the ReactionAdd event for the new Reactors, and same to the removedReactors
+				newReactors.forEach(member -> {
+					//finding the ReactionEmoji
+					reactionAdded(ReactionEmoji.unicode(rawEmoji), member, joinMessage);
+				});
+				removedReactors.forEach(member -> {
+					//finding the ReactionEmoji
+					reactionRemoved(ReactionEmoji.unicode(rawEmoji), member, joinMessage);
+				});
+			});
+		});
+
+	}
+
+	/**
+	 * this method gets all people which have their reactions on a JoinMessage
+	 * grouped first by guild, and then by emoji
+	 * this is done by a map
+	 * @return returns this map
+	 */
+	private static Map<Guild, Map<String, List<Member>>> getCurrentEmojiReactors(){
+		//first get every joinMessage
+		//then add for every message, for every emoji the reactor as an entry of the inner map
+		final Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
+		joinChannels.stream().forEach(channel -> {
+			final Guild guild = channel.getGuild().block();
+			//this stores the members which reacted to the emoji, for a certain guild
+			final Map<String, List<Member>> emojiReactorsByGuild = new HashMap<>();
+			final Message joinMessage = findJoinMessage(channel);
+			//check if there even is a joinMessage, if not then there were no new members (technically every role should be removed
+			//but i wont do that
+			if(joinMessage == null)
+				return;
+
+			//now go through every reaction emoji and get the reactors
+			joinMessage.getReactions().stream()
+					.map(Reaction::getEmoji)
+					.forEach(emoji -> {
+						final List<Member> reactorsByEmoji = new LinkedList<>();
+						//getting the reactors of the guild, by firt getting all users who reacted
+						//then finding them in the guild
+						//but they don't have to be in there (they could've left and the reaction stays)
+						//so check if they are still in, then get the member
+						//then add every member to the list of members who reacted
+						joinMessage.getReactors(emoji).toStream()
+																.map(user -> guild.getMemberById(user.getId()).blockOptional())
+																.filter(Optional::isPresent)
+																.map(Optional::get)
+																.forEach(reactorsByEmoji::add);
+						//get the raw version of the emoji
+						String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
+						//now put this entry into the emojiReactorsByGuild
+						emojiReactorsByGuild.put(rawEmoji, reactorsByEmoji);
+
+					});
+
+			//now putting this map into the map of the emojiReactors
+			emojiReactors.put(guild, emojiReactorsByGuild);
+		});
+
+		//finally return the map
+		return emojiReactors;
 	}
  }
