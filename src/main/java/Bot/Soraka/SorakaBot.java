@@ -106,32 +106,12 @@ public class SorakaBot {
 	private static void onReactionRemove(){
 		client.getEventDispatcher().on(ReactionRemoveEvent.class)
 				.subscribe(event -> {
-					//check if it is a joinChannel
-					Channel joinChannel = event.getChannel().block();
-					//if the reaction was removed somewhere not in a joinChannel, then its not important
-					if(!joinChannels.contains(joinChannel))
-						return;
-
-					//get the emoji as a string
-					String emoji = event.getEmoji().asUnicodeEmoji().get().getRaw();
-
+					Message message = event.getMessage().block();
+					ReactionEmoji emoji = event.getEmoji();
 					Guild guild = event.getGuild().block();
-					//and now get the role connected to that emoji, also check if there was an entry
-					Role role = emojiRoles.get(guild).get(emoji);
-
 					Member member = guild.getMemberById(event.getUserId()).block();
 
-					//check if there is no role assigned to the emoji or the user doesn't have the role
-					if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
-						logger.log("The emoji: " + emoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(event.getUser().block().getUsername())
-									, guild);
-						return;
-					}
-
-					//now assign the role to the user
-					member.removeRole(role.getId()).block();
-
-					logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+					reactionRemoved(emoji, member, message);
 				});
 	}
 
@@ -239,6 +219,9 @@ public class SorakaBot {
 		//if the reaction was added somewhere not in a joinChannel, then its not important
 		if(!joinChannels.contains(joinChannel))
 			return;
+		//if this wasn't the joinMessage
+		if(!message.equals(findJoinMessage((GuildMessageChannel) joinChannel)))
+			return;
 		//check if the member is the bot then also cancel this method
 
 		if(BotUtility.sameUser(self, member))
@@ -246,11 +229,11 @@ public class SorakaBot {
 
 
 		//and now get the role connected to that emoji, also check if there was an entry
-		Map<String, Role> emojiMapForGuild = emojiRoles.get(guild);
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
 		Role role = null;
 		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.Unicode.unicode("customEmoji")).getRaw();
-		if(emojiMapForGuild != null)
-			role = emojiMapForGuild.get(rawEmoji);
+		if(guildEmojiRoles != null)
+			role = guildEmojiRoles.get(rawEmoji);
 
 		//check if there is no role assigned to the emoji
 		//then remove the emoji again
@@ -260,7 +243,6 @@ public class SorakaBot {
 			//remove the reaction if possible (could be missing permissions if the admin does it (or a role higher than him)
 			try {
 				message.removeReactions(emoji).block();
-
 			}
 			catch(ClientException e){
 				ErrorResponse resp = e.getErrorResponse().orElse(null);
@@ -276,6 +258,42 @@ public class SorakaBot {
 		member.addRole(role.getId()).block();
 
 		logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+	}
+
+	/**
+	 * this method simulates a that a reaction has been removed
+	 * somebody could've really removed a reaction at that point, but it doesn't have to be
+	 * @param emoji the emoji which was removed as a reaction
+	 * @param member the person who reacted
+	 * @param message the message on which was reacted
+	 */
+	private static void reactionRemoved(ReactionEmoji emoji, Member member, Message message){
+		Guild guild = member.getGuild().block();
+		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
+		//and now get the role connected to that emoji, also check if there was an entry
+		Role role = emojiRoles.get(guild).get(rawEmoji);
+
+		Channel joinChannel = message.getChannel().block();
+
+		//if the reaction was removed somewhere not in a joinChannel, then its not important
+		if(!joinChannels.contains(joinChannel))
+			return;
+		//if this wasn't the joinMessage
+		if(!message.equals(findJoinMessage((GuildMessageChannel) joinChannel)))
+			return;
+
+
+		//check if there is no role assigned to the emoji or the user doesn't have the role
+		if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
+			logger.log("The emoji: " + rawEmoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(member.getUsername())
+					, guild);
+			return;
+		}
+
+		//now assign the role to the user
+		member.removeRole(role.getId()).block();
+
+		logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 	}
 
 	/**
