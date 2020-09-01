@@ -60,7 +60,7 @@ public class JoinChannelHandler {
 	 * @param guild the guild where the joinChannel should be
 	 * @return the joinChannel, or null if there is no joinChannel
 	 */
-	public GuildMessageChannel findJoinChannel(Guild guild){
+	private GuildMessageChannel findJoinChannel(Guild guild){
 		return guild.getChannels()
 				.filter(channel -> channel instanceof GuildMessageChannel)
 				.map(channel -> (GuildMessageChannel) channel)
@@ -72,7 +72,7 @@ public class JoinChannelHandler {
 	 * @param guild the guild where the message should be
 	 * @return the message or null if not found
 	 */
-	public Message findJoinMessage(Guild guild){
+	private Message findJoinMessage(Guild guild){
 		GuildMessageChannel joinChannel = findJoinChannel(guild);
 		if(joinChannel == null)
 			return null;
@@ -84,7 +84,7 @@ public class JoinChannelHandler {
 	 * @param channel the channel where the joinMessage should be
 	 * @return the message or null if not found
 	 */
-	public Message findJoinMessage(GuildMessageChannel channel){
+	private Message findJoinMessage(GuildMessageChannel channel){
 		//basically find the first message sent by the bot
 		//with all the right emojis
 		Guild guild = channel.getGuild().block();
@@ -148,11 +148,11 @@ public class JoinChannelHandler {
 	 * this is done by a map
 	 * @return returns this map
 	 */
-	public Map<Guild, Map<String, List<Member>>> getCurrentEmojiReactors(){
+	private Map<Guild, Map<String, List<Member>>> getCurrentEmojiReactors(){
 		//first get every joinMessage
 		//then add for every message, for every emoji the reactor as an entry of the inner map
 		final Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
-		joinChannels.stream().forEach(channel -> {
+		joinChannels.forEach(channel -> {
 			final Guild guild = channel.getGuild().block();
 			//this stores the members which reacted to the emoji, for a certain guild
 			final Map<String, List<Member>> emojiReactorsByGuild = new HashMap<>();
@@ -351,7 +351,7 @@ public class JoinChannelHandler {
 	 * this method creates the join message in a channel
 	 * @param joinChannel the channel where the message should be created
 	 */
-	public void createJoinMessage(GuildMessageChannel joinChannel){
+	private void createJoinMessage(GuildMessageChannel joinChannel){
 		Guild guild = joinChannel.getGuild().block();
 		final String content = makeJoinMessageContent(guild);
 		joinChannel.createMessage(content).subscribe(message -> addRoleEmojis(message));
@@ -426,7 +426,7 @@ public class JoinChannelHandler {
 	 * this method makes the message which gets displayed on the joinChannel of the guild
 	 * @param guild the guild where the joinChannel should be
 	 */
-	public String makeJoinMessageContent(Guild guild){
+	private String makeJoinMessageContent(Guild guild){
 		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
 
 		String botNameInGuild = guild.getMemberById(SorakaBot.getSelf().getId()).block().getNickname().orElse(SorakaBot.getSelf().getUsername());
@@ -466,7 +466,7 @@ public class JoinChannelHandler {
 	 * it adds the emojis used to assign roles to a message
 	 * @param msg this is the message
 	 */
-	public void addRoleEmojis(Message msg){
+	private void addRoleEmojis(Message msg){
 		msg.addReaction(ReactionEmoji.unicode(GAMER_EMOJI)).subscribe();
 		msg.addReaction(ReactionEmoji.unicode(STUDENT_EMOJI)).subscribe();
 	}
