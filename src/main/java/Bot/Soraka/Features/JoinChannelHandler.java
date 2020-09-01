@@ -429,7 +429,7 @@ public class JoinChannelHandler {
 					.map(Reaction::getEmoji)
 					.forEach(emoji -> {
 						final List<Member> reactorsByEmoji = new LinkedList<>();
-						//getting the reactors of the guild, by firt getting all users who reacted
+						//getting the reactors of the guild, by first getting all users who reacted
 						//then finding them in the guild
 						//but they don't have to be in there (they could've left and the reaction stays)
 						//so check if they are still in, then get the member
