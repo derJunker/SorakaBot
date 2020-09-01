@@ -118,7 +118,7 @@ public class BotUtility {
 			messages.add(lastMessage);
 
 			return messages;
-		}catch(ClientException e){
+		}catch(ClientException | NullPointerException e){
 			//if there was no last message then the channel is empty so return an empty list
 			return new ArrayList<>();
 		}
