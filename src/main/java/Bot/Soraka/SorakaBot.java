@@ -18,6 +18,7 @@ import discord4j.core.event.domain.message.ReactionRemoveEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.*;
+import discord4j.core.object.reaction.Reaction;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.rest.http.client.ClientException;
 import discord4j.rest.json.response.ErrorResponse;
@@ -25,7 +26,10 @@ import discord4j.rest.util.Permission;
 import discord4j.rest.util.PermissionSet;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
 
 public class SorakaBot {
 
@@ -71,6 +75,7 @@ public class SorakaBot {
 		//normally the emoji get loaded but its currently hardcoded
 		fillEmojisToRoles();
 		joinChannels = MemManager.loadJoinChannels(client);
+		checkJoinReactions();
 
 		onReady();
 		onReactionAdd();
@@ -370,7 +375,7 @@ public class SorakaBot {
 																			.stream()
 																			.filter(reaction -> reaction.getEmoji().asUnicodeEmoji().isPresent())
 																			.map(reaction -> reaction.getEmoji().asUnicodeEmoji().get().getRaw())
-																			.collect(Collectors.toList());
+																			.collect(toList());
 									return messageEmojis.containsAll(guildEmojis);
 								})
 								.findFirst().orElse(null);
@@ -514,6 +519,56 @@ public class SorakaBot {
 	 * and if people retracted their reaction, if so then
 	 */
 	private static void checkJoinReactions(){
+		MemManager.loadEmojiReactors(client);
+	}
 
+	/**
+	 * this method gets all people which have their reactions on a JoinMessage
+	 * grouped first by guild, and then by emoji
+	 * this is done by a map
+	 * @return returns this map
+	 */
+	private static Map<Guild, Map<String, List<Member>>> getCurrentEmojiReactors(){
+		//first get every joinMessage
+		//then add for every message, for every emoji the reactor as an entry of the inner map
+		final Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
+		joinChannels.stream().forEach(channel -> {
+			final Guild guild = channel.getGuild().block();
+			//this stores the members which reacted to the emoji, for a certain guild
+			final Map<String, List<Member>> emojiReactorsByGuild = new HashMap<>();
+			final Message joinMessage = findJoinMessage(channel);
+			//check if there even is a joinMessage, if not then there were no new members (technically every role should be removed
+			//but i wont do that
+			if(joinMessage == null)
+				return;
+
+			//now go through every reaction emoji and get the reactors
+			joinMessage.getReactions().stream()
+					.map(Reaction::getEmoji)
+					.forEach(emoji -> {
+						final List<Member> reactorsByEmoji = new LinkedList<>();
+						//getting the reactors of the guild, by firt getting all users who reacted
+						//then finding them in the guild
+						//but they don't have to be in there (they could've left and the reaction stays)
+						//so check if they are still in, then get the member
+						//then add every member to the list of members who reacted
+						joinMessage.getReactors(emoji).toStream()
+																.map(user -> guild.getMemberById(user.getId()).blockOptional())
+																.filter(Optional::isPresent)
+																.map(Optional::get)
+																.forEach(reactorsByEmoji::add);
+						//get the raw version of the emoji
+						String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
+						//now put this entry into the emojiReactorsByGuild
+						emojiReactorsByGuild.put(rawEmoji, reactorsByEmoji);
+
+					});
+
+			//now putting this map into the map of the emojiReactors
+			emojiReactors.put(guild, emojiReactorsByGuild);
+		});
+
+		//finally return the map
+		return emojiReactors;
 	}
  }

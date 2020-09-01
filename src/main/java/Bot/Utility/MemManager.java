@@ -78,21 +78,20 @@ public class MemManager {
 	 * @param client the client of the bot
 	 * @return the emojiRoles as a map
 	 */
-	public static Map<Guild, Map<String, Member>> loadEmojiReactors(GatewayDiscordClient client){
+	public static Map<Guild, Map<String, List<Member>>> loadEmojiReactors(GatewayDiscordClient client){
 		try{
 			String filePath = RES_FOLDER + EMOJI_REACTOR_NAMES;
 			FileInputStream fis = new FileInputStream(filePath);
 			ObjectInputStream ois = new ObjectInputStream(fis);
 			//reading the map of guild-id and channel-id
 			@SuppressWarnings("unchecked")
-			Map<String, Map<String, String>> emojiReactorIds = (Map<String, Map<String, String>>) ois.readObject();
+			Map<String, Map<String, List<String>>> emojiReactorIds = (Map<String, Map<String, List<String>>>) ois.readObject();
 			if(emojiReactorIds == null){
 				emojiReactorIds = new HashMap<>();
 			}
 			ois.close();
 			//now deserialize it, so make it the list of joinChannels
-			Map<Guild, Map<String, Member>> emojiReactors = deserializeEmojiReactors(emojiReactorIds, client);
-			return emojiReactors;
+			return deserializeEmojiReactors(emojiReactorIds, client);
 		}
 		catch(IOException | ClassNotFoundException e){
 			return null;
@@ -147,10 +146,10 @@ public class MemManager {
 	 * by extracting the ids of the guilds, and roles
 	 * @param emojiRoles the object to be saved
 	 */
-	public static void saveEmojiReactors(Map<Guild, Map<String, Member>> emojiRoles){
+	public static void saveEmojiReactors(Map<Guild, Map<String, List<Member>>> emojiRoles){
 		try {
 			//fist convert the map
-			Map<String, Map<String, String>> convertedEmojiReactors = serializeEmojiReactors(emojiRoles);
+			Map<String, Map<String, List<String>>> convertedEmojiReactors = serializeEmojiReactors(emojiRoles);
 			String fileName = RES_FOLDER + EMOJI_ROLE_NAMES;
 			FileOutputStream fos = new FileOutputStream(fileName);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
@@ -188,21 +187,31 @@ public class MemManager {
 
 	/**
 	 * this method makes the map of emoji roles into a mak of string representation of ids, so you can save the map
-	 * @param emojiRoles the map to be converted
+	 * @param emojiReactors the map to be converted
 	 * @return returns the serializable map
 	 */
-	private static Map<String, Map<String, String>> serializeEmojiReactors(Map<Guild, Map<String, Member>> emojiRoles){
+	private static Map<String, Map<String, List<String>>> serializeEmojiReactors(Map<Guild, Map<String, List<Member>>> emojiReactors){
 		//first convert the map into a map with the guild, and roles replaced with its ids
 		//then save this map
-		Map<String, Map<String, String>> convertedEmojiRoles = new HashMap<>();
-		emojiRoles.forEach((guild, guildEmojiRoles) -> {
-			//first convert the guildEmojiRoles to the Map<String, String)
-			//basically mapping the guildEmojiRoles, to itself, but the role is represented by id
-			//and this done during the collect method
-			Map<String, String> convertedGuildEmojiRoles =  guildEmojiRoles.entrySet().stream()
-					.collect(Collectors.toMap(entry -> entry.getKey()
-							, entry -> entry.getValue().getId().asString()));
-			convertedEmojiRoles.put(guild.getId().asString(), convertedGuildEmojiRoles);
+
+		//you have to read this code from the inner loop to the outer ones
+		//so you first you have the guild, and the emoji, and you fill a list of embers who reacted to this emoji
+		//then you go out one loop, now you add for every guild, every emoji with its list of reactors
+		//and you do this for every guild
+		Map<String, Map<String, List<String>>> convertedEmojiRoles = new HashMap<>();
+		emojiReactors.forEach((guild, guildEmojiReactors) -> {
+
+			//for every guild add all the emojis with its reactors
+			final Map<String, List<String>> guildEmojiReactorIds = new HashMap<>();
+			guildEmojiReactors.forEach((rawEmoji, reactorsByEmoji) -> {
+
+				//for every guild and emoji get a list of all the reactors
+				final List<String> reactorIds = new LinkedList<>();
+				reactorsByEmoji.forEach(member -> reactorIds.add(member.getId().asString()));
+				guildEmojiReactorIds.put(rawEmoji, reactorIds);
+			});
+			convertedEmojiRoles.put(guild.getId().asString(), guildEmojiReactorIds);
+
 		});
 		return convertedEmojiRoles;
 	}
@@ -265,10 +274,10 @@ public class MemManager {
 	 * @param client the client, to get the guilds by id
 	 * @return returns the list
 	 */
-	private static Map<Guild, Map<String, Member>> deserializeEmojiReactors(Map<String, Map<String, String>> emojiRoleIds, GatewayDiscordClient client){
+	private static Map<Guild, Map<String, List<Member>>> deserializeEmojiReactors(Map<String, Map<String, List<String>>> emojiRoleIds, GatewayDiscordClient client){
 		//first convert the map into a map with the guild, and roles replaced with its ids
 		//then save this map
-		Map<Guild, Map<String, Member>> emojiReactors = new HashMap<>();
+		Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
 		emojiRoleIds.forEach((guildId, guildEmojiReactorIds) -> {
 			//get the find the guild by the id
 			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
@@ -278,16 +287,21 @@ public class MemManager {
 			final Guild guild = optionalGuild.get();
 			//now go through every emoji of this guild, and find the role for it
 			//and add them to the map below
-			final Map<String, Member> guildEmojiReactors = new HashMap<>();
-			guildEmojiReactorIds.forEach((rawEmoji, memberId) ->{
-				//finding the role, by first checking if it even exists
-				Optional<Member> optionalMember = guild.getMemberById(Snowflake.of(memberId)).blockOptional();
-				if(optionalMember.isEmpty()){
-					return;
-				}
-				Member member = optionalMember.get();
-				//now put this role into the converted map
-				guildEmojiReactors.put(rawEmoji, member);
+			final Map<String, List<Member>> guildEmojiReactors = new HashMap<>();
+			guildEmojiReactorIds.forEach((rawEmoji, memberIds) ->{
+				//getting the members and for each adding them
+				final List<Member> reactors = new LinkedList<>();
+				memberIds.forEach(memberId -> {
+					Optional<Member> optionalMember = guild.getMemberById(Snowflake.of(memberId)).blockOptional();
+					if(optionalMember.isEmpty()){
+						return;
+					}
+					Member member = optionalMember.get();
+					//now put this role into the converted map
+					reactors.add(member);
+				});
+				guildEmojiReactors.put(rawEmoji, reactors);
+
 			});
 			//now the guildEmojiRoles map is filled, so add it to the emojiReactors map
 			emojiReactors.put(guild, guildEmojiReactors);
