@@ -17,7 +17,7 @@ public class MemManager {
 
 	//filenames
 	private static final String JOIN_CHANNEL_NAMES = "join.channels";
-	private static final String EMOJI_ROLE_NAMES = "emoji.roles";
+	private static final String EMOJI_ROLE_NAMES = "emoji.reactors";
 	private static final String EMOJI_REACTOR_NAMES = "emoji.reactors";
 
 	//--------------------------------------------------load-methods--------------------------------------------------
@@ -150,7 +150,7 @@ public class MemManager {
 		try {
 			//fist convert the map
 			Map<String, Map<String, List<String>>> convertedEmojiReactors = serializeEmojiReactors(emojiRoles);
-			String fileName = RES_FOLDER + EMOJI_ROLE_NAMES;
+			String fileName = RES_FOLDER + EMOJI_REACTOR_NAMES;
 			FileOutputStream fos = new FileOutputStream(fileName);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 			oos.writeObject(convertedEmojiReactors);

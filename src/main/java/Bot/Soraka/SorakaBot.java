@@ -75,7 +75,6 @@ public class SorakaBot {
 		//normally the emoji get loaded but its currently hardcoded
 		fillEmojisToRoles();
 		joinChannels = MemManager.loadJoinChannels(client);
-		checkJoinReactions();
 
 		onReady();
 		onReactionAdd();
@@ -236,7 +235,7 @@ public class SorakaBot {
 		//and now get the role connected to that emoji, also check if there was an entry
 		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
 		Role role = null;
-		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.Unicode.unicode("customEmoji")).getRaw();
+		String rawEmoji = emoji.asUnicodeEmoji().orElse(ReactionEmoji.unicode("customEmoji")).getRaw();
 		if(guildEmojiRoles != null)
 			role = guildEmojiRoles.get(rawEmoji);
 
@@ -262,6 +261,7 @@ public class SorakaBot {
 		//now assign the role to the user
 		member.addRole(role.getId()).block();
 
+		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
 		logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 	}
 
@@ -298,6 +298,7 @@ public class SorakaBot {
 		//now assign the role to the user
 		member.removeRole(role.getId()).block();
 
+		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
 		logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
 	}
 
@@ -380,6 +381,18 @@ public class SorakaBot {
 								})
 								.findFirst().orElse(null);
 		return joinMessage;
+	}
+
+	/**
+	 * this method finds the joinMessage of a guild (if there is a joinChannel
+ 	 * @param guild the guild where the message should be
+	 * @return the message or null if not found
+	 */
+	private static Message findJoinMessage(Guild guild){
+		GuildMessageChannel joinChannel = findJoinChannel(guild);
+		if(joinChannel == null)
+			return null;
+		return findJoinMessage(joinChannel);
 	}
 
 	/**
@@ -468,7 +481,7 @@ public class SorakaBot {
 		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
 						"This is the join-channel, where you can choose your Roles!\n" +
 						"Depending on which roles you choose you unlock different voice and text channels.\n" +
-						"Note that this only works if this bot (**" + botNameInGuild + " [BOT]**) is online!\n" +
+						"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
 						"Possible roles to choose from are:\n";
 		if(guildEmojiRoles != null)
 			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
@@ -519,7 +532,48 @@ public class SorakaBot {
 	 * and if people retracted their reaction, if so then
 	 */
 	private static void checkJoinReactions(){
-		MemManager.loadEmojiReactors(client);
+		//get the old and current reactors
+		Map<Guild, Map<String, List<Member>>> oldEmojiReactors = MemManager.loadEmojiReactors(client);
+		//if there was no file containing the emojiReactors then stop this
+		if(oldEmojiReactors == null)
+			return;
+		Map<Guild, Map<String, List<Member>>> currentEmojiReactors = getCurrentEmojiReactors();
+
+		//now go through every guild, emoji and check if there is a difference in Members
+		currentEmojiReactors.forEach((guild, emojiReactorsByGuild) -> {
+			//get the message which contains the reactions
+			Message joinMessage = findJoinMessage(guild);
+			//if there is none then return (this should never happens because the currentEmojiReactors just have entries if there is a channel
+			if(joinMessage == null)
+				return;
+
+			emojiReactorsByGuild.forEach((rawEmoji, currentReactors) -> {
+				//get the reactors of the same guild and emoji of the oldReactors
+				Map<String, List<Member>> oldEmojiReactorsByGuild = oldEmojiReactors.get(guild);
+				//if there is no entry simulate an empty entry
+				if(oldEmojiReactorsByGuild == null)
+					oldEmojiReactorsByGuild = new HashMap<>();
+				List<Member> oldReactors = oldEmojiReactorsByGuild.get(rawEmoji);
+				if(oldReactors == null)
+					oldReactors = new LinkedList<>();
+
+				//for every emoji get the differences of the old and current reactors (both ways)
+				//if you take current / old then you get the new added reactors
+				//if you take old / current you get the removed reactors
+				List<Member> newReactors = Utility.listDifference(currentReactors, oldReactors);
+				List<Member> removedReactors = Utility.listDifference(oldReactors, currentReactors);
+				//now simulate the ReactionAdd event for the new Reactors, and same to the removedReactors
+				newReactors.forEach(member -> {
+					//finding the ReactionEmoji
+					reactionAdded(ReactionEmoji.unicode(rawEmoji), member, joinMessage);
+				});
+				removedReactors.forEach(member -> {
+					//finding the ReactionEmoji
+					reactionRemoved(ReactionEmoji.unicode(rawEmoji), member, joinMessage);
+				});
+			});
+		});
+
 	}
 
 	/**
