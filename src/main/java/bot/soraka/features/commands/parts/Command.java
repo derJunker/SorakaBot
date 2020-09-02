@@ -1,25 +1,29 @@
-package bot.soraka.features.commands;
+package bot.soraka.features.commands.parts;
 
 import bot.soraka.SorakaBot;
+import bot.utility.Description;
 import discord4j.core.object.entity.Message;
-import discord4j.core.object.entity.channel.MessageChannel;
-import discord4j.rest.util.PermissionSet;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class Command {
-	private Executable command;
-	List<CommandRequirement> requirements;
 
-	Command(List<CommandRequirement> requirements, Executable command){
+	private Executable command;
+	private List<CommandRequirement> requirements;
+	private Description description;
+
+
+	public Command(List<CommandRequirement> requirements, Executable command, Description description){
 		this.requirements = new ArrayList<>(requirements);
 		this.command = command;
+		this.description = description;
 	}
 
-	Command(Executable command){
+	public Command(Executable command, Description description){
 		this.command = command;
 		requirements = new ArrayList<>();
+		this.description = description;
 	}
 
 	public void execute(Message message){
@@ -32,5 +36,9 @@ public class Command {
 		}
 		//if so then execute the command
 		command.execute(message);
+	}
+
+	public Description getDescription(){
+		return description;
 	}
 }

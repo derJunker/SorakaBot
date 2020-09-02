@@ -1,5 +1,6 @@
 package bot.logger;
 
+import bot.utility.BotUtility;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Message;
@@ -31,7 +32,9 @@ public class DiscordLogger {
 		String origin = "Via DM: **" + author.getUsername() + "**: ";
 		if(guild != null){
 			GuildChannel guildChannel = (GuildChannel) message.getChannel().block();
-			origin = "In channel: **" + guild.getName() + "/#" + guildChannel.getName() + "**: ";
+			origin = "Member: **" + BotUtility.getNameInGuild(message.getAuthorAsMember().block()) +
+					"** In channel: **" + guild.getName() +
+					"/#" + guildChannel.getName() + "**: ";
 		}
 		log(origin + content);
 	}

@@ -1,7 +1,11 @@
 package bot.soraka.features.commands;
 
 import bot.logger.DiscordLogger;
+import bot.soraka.features.commands.parts.Command;
+import bot.soraka.features.commands.parts.CommandRequirement;
+import bot.soraka.features.commands.parts.Executable;
 import bot.utility.BotUtility;
+import bot.utility.Description;
 import bot.utility.MemManager;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.entity.Guild;
@@ -32,12 +36,12 @@ public class CommandHandler {
 	}
 
 	//methods to add and remove a command
-	public Command addCommand(String name, Executable executable){
-		return availableCommands.put(name, new Command(executable));
+	public Command addCommand(String name, Executable executable, Description description){
+		return availableCommands.put(name, new Command(executable, description));
 	}
 
-	public Command addCommand(String name, Executable executable, List<CommandRequirement> requirements){
-		return availableCommands.put(name, new Command(requirements, executable));
+	public Command addCommand(String name, Executable executable, List<CommandRequirement> requirements, Description description){
+		return availableCommands.put(name, new Command(requirements, executable, description));
 	}
 
 	public Command addCommand(String name, Command command){
@@ -76,28 +80,26 @@ public class CommandHandler {
 		//these vars are used to make a command
 		List<CommandRequirement> requirements = new LinkedList<>();
 		Executable executable;
+		Description description;
 
 		//adding the ping command
 		//no requirements needed
+		requirements = new LinkedList<>();
 		executable =  message -> {
 			MessageChannel channel = message.getChannel().block();
 			channel.createMessage("pong").block();
 		};
-		addCommand("ping", executable);
+		description = new Description("pings the bot -- if online the bot responds with pong");
+		addCommand("ping", executable, description);
 
-		//adding the help command
-		//no requirements needed
-		executable = message -> {
-			String prefix = guildPrefixOrDefault(message);
+
+		requirements = new LinkedList<>();
+		description = new Description("A more hands on approach for help");
+		executable = message ->{
 			MessageChannel channel = message.getChannel().block();
-			StringBuilder content = new StringBuilder().append("commands: \n");
-			content.append("-------------------------------\n");
-			//listing all the possible commands
-			availableCommands.forEach((name, ignored) -> content.append("**" + prefix + name + "**\n"));
-			content.append("-------------------------------\n");
-			channel.createMessage(content.toString()).block();
+			channel.createMessage("Moritz heul nicht rum").block();
 		};
-		addCommand("help", executable);
+		addCommand("Hilfeeee", executable, description);
 
 		//adding the prefix command
 		//there are two requirements for this command
@@ -138,7 +140,27 @@ public class CommandHandler {
 			prefixes.put(guild, prefix);
 			MemManager.savePrefixes(prefixes, client);
 		};
-		addCommand("prefix", executable, requirements);
+		description = new Description("it changes the prefix for commands: syntax **!prefix $newPrefix**, no spaces in the newPrefix!");
+		addCommand("prefix", executable, requirements, description);
+
+		//adding the help command
+		//no requirements needed
+		requirements = new LinkedList<>();
+		description = new Description("gives out every possible command, with a description");
+		executable = message -> {
+			String prefix = guildPrefixOrDefault(message);
+			MessageChannel channel = message.getChannel().block();
+			StringBuilder content = new StringBuilder().append("commands: \n");
+			content.append("-------------------------------\n");
+			//listing all the possible commands
+			availableCommands.forEach((name, command) -> {
+
+				content.append("**" + prefix + name + "** -> " + command.getDescription().vShort() + "\n");
+			});
+			content.append("-------------------------------\n");
+			channel.createMessage(content.toString()).block();
+		};
+		addCommand("help", executable, description);
 	}
 
 	private String guildPrefixOrDefault(Message message){

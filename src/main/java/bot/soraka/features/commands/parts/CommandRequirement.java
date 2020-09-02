@@ -1,8 +1,10 @@
-package bot.soraka.features.commands;
+package bot.soraka.features.commands.parts;
 
 import bot.utility.BotUtility;
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
+
+import java.util.List;
 
 
 public interface CommandRequirement {
@@ -15,8 +17,6 @@ public interface CommandRequirement {
 												}
 												return result;
 											};
-
-
 
 
 	boolean check(Message message);
