@@ -1,4 +1,4 @@
-package Bot.Utility;
+package bot.utility;
 
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
@@ -19,6 +19,7 @@ public class MemManager {
 	private static final String JOIN_CHANNEL_NAMES = "join.channels";
 	private static final String EMOJI_ROLE_NAMES = "emoji.reactors";
 	private static final String EMOJI_REACTOR_NAMES = "emoji.reactors";
+	private static final String PREFIXES = "pre.fixes";
 
 	//--------------------------------------------------load-methods--------------------------------------------------
 
@@ -98,6 +99,31 @@ public class MemManager {
 		}
 	}
 
+	/**
+	 * this loads the prefixes for each guild
+	 * @param client the client
+	 * @return returns the map of prefixes
+	 */
+	public static Map<Guild, String> loadPrefixes(GatewayDiscordClient client){
+		try{
+			String filePath = RES_FOLDER + PREFIXES;
+			FileInputStream fis = new FileInputStream(filePath);
+			ObjectInputStream ois = new ObjectInputStream(fis);
+			//reading the map of guild-id
+			@SuppressWarnings("unchecked")
+			Map<String, String> prefixGuildIds = (Map<String, String>) ois.readObject();
+			if(prefixGuildIds == null){
+				prefixGuildIds = new HashMap<>();
+			}
+			ois.close();
+			//now deserialize it, so make it the list of joinChannels
+			return deserializePrefixes(prefixGuildIds, client);
+		}
+		catch(IOException | ClassNotFoundException e){
+			return new HashMap<>();
+		}
+	}
+
 	//------------------------------------------------end: load-methods------------------------------------------------
 
 	//--------------------------------------------------save-methods--------------------------------------------------
@@ -154,6 +180,24 @@ public class MemManager {
 			FileOutputStream fos = new FileOutputStream(fileName);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 			oos.writeObject(convertedEmojiReactors);
+			oos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * saves the map of prefix for each guild
+	 * @param prefixes the map of the prefix for each guild
+	 */
+	public static void savePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
+		try {
+			//fist convert the map
+			Map<String, String> convertedPrefixes = serializePrefixes(prefixes, client);
+			String fileName = RES_FOLDER + PREFIXES;
+			FileOutputStream fos = new FileOutputStream(fileName);
+			ObjectOutputStream oos = new ObjectOutputStream(fos);
+			oos.writeObject(convertedPrefixes);
 			oos.close();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -226,6 +270,18 @@ public class MemManager {
 		//putting every channel into the map with its guild
 		joinChannels.forEach(channel -> convertedJoinChannels.put(channel.getGuildId().asString(), channel.getId().asString()));
 		return convertedJoinChannels;
+	}
+
+	/**
+	 * serializes the prefix map
+	 * @param prefixes the prefix for each guild
+	 * @return returns the serialized form of the map (turns the guild into the guildId)
+	 */
+	private static Map<String, String> serializePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
+		final Map<String, String> convertedPrefixes = new HashMap<>();
+		//putting every channel into the map with its guild
+		prefixes.forEach((guild, prefix) -> convertedPrefixes.put(guild.getId().asString(), prefix));
+		return convertedPrefixes;
 	}
 
 	//-------------------------------------------------end: serialize-methods-------------------------------------------------
@@ -332,6 +388,27 @@ public class MemManager {
 		});
 		//finally convert the channels into GuildMessage
 		return joinChannels;
+	}
+
+	/**
+	 * gets the map of guilds from a map of guildIds
+	 * @param prefixGuildIds the map
+	 * @return returns the map of guilds with their prefixes
+	 */
+	private static Map<Guild, String> deserializePrefixes(Map<String, String> prefixGuildIds, GatewayDiscordClient client){
+		//now converting it into a list of channels
+		Map<Guild, String> prefixes = new HashMap<>();
+		prefixGuildIds.forEach((guildId, prefix) -> {
+			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
+			if(optionalGuild.isEmpty()){
+				return;
+			}
+			Guild guild = optionalGuild.get();
+
+			prefixes.put(guild, prefix);
+		});
+		//finally convert the channels into GuildMessage
+		return prefixes;
 	}
 
 	//------------------------------------------------end: deserialize-methods------------------------------------------------

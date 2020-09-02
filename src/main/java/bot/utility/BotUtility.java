@@ -1,10 +1,9 @@
-package Bot.Utility;
+package bot.utility;
 
-import discord4j.common.util.Snowflake;
-import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildChannel;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.http.client.ClientException;
@@ -91,13 +90,23 @@ public class BotUtility {
 
 	}
 
-	public static void spongebobMeme(MessageCreateEvent createEvent){
+	/**
+	 * this method sends back a message with alternating case
+	 * @param message Message which gets sent back
+	 */
+	public static void spongebobMeme(Message message){
 		//getting the content of the message
-		String content = createEvent.getMessage().getContent();
+		String content = message.getContent();
 		content = Utility.toAltCase(content);
-		createEvent.getMessage().getChannel().block().createMessage(content).block();
+		message.getChannel().block().createMessage(content).block();
 	}
 
+	/**
+	 * compares the guildIds of 2 guilds
+	 * @param g1 -
+	 * @param g2 -
+	 * @return returns if they are the same
+	 */
 	public static boolean sameGuildId(Guild g1, Guild g2){
 		return Objects.equals(g1.getId(), g2.getId());
 	}
@@ -124,5 +133,24 @@ public class BotUtility {
 		}
 
 
+	}
+
+	/**
+	 * checks if a message was sent in a guild or via DM
+	 * @param message the message to be checked
+	 * @return if this wasn't a dm
+	 */
+	public static boolean inGuild(Message message){
+		MessageChannel channel = message.getChannel().block();
+		return !channel.getType().equals(Channel.Type.DM);
+	}
+
+	/**
+	 * this method gets the string how the member is called in his guild (either his nickname or username
+	 * @param member the member to get the name from
+	 * @return returns his name
+	 */
+	public static String getNameInGuild(Member member){
+		return member.getNickname().orElse(member.getUsername());
 	}
 }

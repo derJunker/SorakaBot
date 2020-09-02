@@ -1,10 +1,10 @@
-package Bot.Soraka.Features;
+package bot.soraka.features;
 
-import Bot.Logger.DiscordLogger;
-import Bot.Soraka.SorakaBot;
-import Bot.Utility.BotUtility;
-import Bot.Utility.MemManager;
-import Bot.Utility.Utility;
+import bot.logger.DiscordLogger;
+import bot.soraka.SorakaBot;
+import bot.utility.BotUtility;
+import bot.utility.MemManager;
+import bot.utility.Utility;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.Guild;
@@ -236,7 +236,7 @@ public class RoleAssignHandler {
 	private String makeJoinMessageContent(Guild guild){
 		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
 
-		String botNameInGuild = guild.getMemberById(SorakaBot.getSelf().getId()).block().getNickname().orElse(SorakaBot.getSelf().getUsername());
+		String botNameInGuild = BotUtility.getNameInGuild(guild.getMemberById(SorakaBot.getSelf().getId()).block());
 		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
 				"This is the join-channel, where you can choose your Roles!\n" +
 				"Depending on which roles you choose you unlock different voice and text channels.\n" +
@@ -289,7 +289,7 @@ public class RoleAssignHandler {
 
 		//check if there is no role assigned to the emoji or the user doesn't have the role
 		if(role == null || member.getRoles().filter(role::equals).blockFirst() == null){
-			logger.log("The emoji: " + rawEmoji + "was removed which has no role assigned to it by: " + member.getNickname().orElse(member.getUsername())
+			logger.log("The emoji: " + rawEmoji + "was removed which has no role assigned to it by: " + BotUtility.getNameInGuild(member)
 					, guild);
 			return;
 		}
@@ -298,7 +298,7 @@ public class RoleAssignHandler {
 		member.removeRole(role.getId()).block();
 
 		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
-		logger.log("Removed role: **" + role.getName() + "** from: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+		logger.log("Removed role: **" + role.getName() + "** from: **" + BotUtility.getNameInGuild(member) + "**", guild);
 	}
 
 	/**
@@ -382,7 +382,7 @@ public class RoleAssignHandler {
 		//check if there is no role assigned to the emoji
 		//then remove the emoji again
 		if(role == null){
-			logger.log("The emoji: " + rawEmoji + "was added which has no role assigned to it by: " + member.getNickname().orElse(member.getUsername())
+			logger.log("The emoji: " + rawEmoji + "was added which has no role assigned to it by: " + BotUtility.getNameInGuild(member)
 					, guild);
 			//remove the reaction if possible (could be missing permissions if the admin does it (or a role higher than him)
 			try {
@@ -402,7 +402,7 @@ public class RoleAssignHandler {
 		member.addRole(role.getId()).block();
 
 		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
-		logger.log("Assigned role: **" + role.getName() + "** to: **" + member.getNickname().orElse(member.getUsername()) + "**", guild);
+		logger.log("Assigned role: **" + role.getName() + "** to: **" + BotUtility.getNameInGuild(member) + "**", guild);
 	}
 
 	/**

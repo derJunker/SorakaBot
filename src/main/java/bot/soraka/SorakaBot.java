@@ -1,8 +1,10 @@
-package Bot.Soraka;
+package bot.soraka;
 
-import Bot.Logger.DiscordLogger;
-import Bot.Soraka.Features.RoleAssignHandler;
-import Bot.Utility.BotUtility;
+import bot.logger.DiscordLogger;
+import bot.soraka.features.RoleAssignHandler;
+import bot.soraka.features.commands.CommandHandler;
+import bot.utility.BotUtility;
+import bot.utility.MemManager;
 import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
@@ -10,10 +12,7 @@ import discord4j.core.event.domain.channel.TextChannelDeleteEvent;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
 import discord4j.core.event.domain.guild.MemberUpdateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
-import discord4j.core.event.domain.message.MessageDeleteEvent;
-import discord4j.core.event.domain.message.ReactionAddEvent;
-import discord4j.core.event.domain.message.ReactionRemoveAllEvent;
-import discord4j.core.event.domain.message.ReactionRemoveEvent;
+import discord4j.core.event.domain.message.*;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.*;
 import discord4j.core.object.reaction.ReactionEmoji;
@@ -25,6 +24,7 @@ public class SorakaBot {
 
 	private static DiscordLogger logger;
 	private static RoleAssignHandler roleAssignHandler;
+	private static CommandHandler commandHandler;
 
 	//the client
 	private static GatewayDiscordClient client;
@@ -41,18 +41,37 @@ public class SorakaBot {
 		MessageChannel logChannel = (MessageChannel) BotUtility.getGuildChannelByName("soraka_bot_log", dieLolMains);
 		logger = new DiscordLogger(logChannel);
 
+		commandHandler = new CommandHandler(logger, client);
 		roleAssignHandler = new RoleAssignHandler(logger, client);
 
+		initEvents();
+
+		client.onDisconnect().block();
+	}
+
+	/**
+	 * it sets up all events, for event-handling
+	 */
+	private static void initEvents(){
 		onReady();
+		onMessageCreate();
 		onReactionAdd();
 		onReactionRemove();
 		onReactionRemoveAll();
 		onMemberUpdate();
 		onMessageDelete();
 		onTextChannelDelete();
-		onGuildEvent();
+		onGuildCreate();
+	}
 
-		client.onDisconnect().block();
+	/**
+	 * when a message gets sent
+	 */
+	private static void onMessageCreate(){
+		client.getEventDispatcher().on(MessageCreateEvent.class)
+				.subscribe(event -> {
+					commandHandler.execute(event.getMessage());
+				});
 	}
 
 	/**
@@ -100,7 +119,7 @@ public class SorakaBot {
 	/**
 	 * this method triggers when the bot joins a guild AND when the bot is online
 	 */
-	private static void onGuildEvent() {
+	private static void onGuildCreate() {
 		client.getEventDispatcher().on(GuildCreateEvent.class)
 				.subscribe(event -> {
 					roleAssignHandler.createJoinChannel(event.getGuild());
@@ -134,8 +153,8 @@ public class SorakaBot {
 					//check if the member updated was the bot
 					if(BotUtility.sameUser(self, member)){
 						//now check if the update was a rename
-						String currentName = event.getCurrentNickname().orElse(member.getUsername());
-						String oldName = event.getOld().get().getNickname().orElse(member.getUsername());
+						String currentName = BotUtility.getNameInGuild(member);
+						String oldName = BotUtility.getNameInGuild(event.getOld().get());
 						if(!currentName.equals(oldName)){
 							logger.log("Renamed the bot from **" + oldName + "** to **" + currentName + "**", guild);
 							//update the JoinMessage of the guild
@@ -175,11 +194,17 @@ public class SorakaBot {
 	}
 
 
+	//getter &setter
+
 	public static GatewayDiscordClient getClient() {
 		return client;
 	}
 
 	public static User getSelf(){
 		return self;
+	}
+
+	public static DiscordLogger getLogger(){
+		return logger;
 	}
 }
