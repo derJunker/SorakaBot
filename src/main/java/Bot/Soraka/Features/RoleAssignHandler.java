@@ -25,7 +25,7 @@ import java.util.*;
 
 import static java.util.stream.Collectors.toList;
 
-public class JoinChannelHandler {
+public class RoleAssignHandler {
 
 	private DiscordLogger logger;
 	private GatewayDiscordClient client;
@@ -47,7 +47,7 @@ public class JoinChannelHandler {
 	//this map stores links between emojis and the associated roles, by Guild
 	private final Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
 
-	public JoinChannelHandler(DiscordLogger logger, GatewayDiscordClient client){
+	public RoleAssignHandler(DiscordLogger logger, GatewayDiscordClient client){
 		this.logger = logger;
 		this.client = client;
 		joinChannels = MemManager.loadJoinChannels(client);

@@ -1,10 +1,8 @@
 package Bot.Soraka;
 
 import Bot.Logger.DiscordLogger;
-import Bot.Soraka.Features.JoinChannelHandler;
+import Bot.Soraka.Features.RoleAssignHandler;
 import Bot.Utility.BotUtility;
-import Bot.Utility.MemManager;
-import Bot.Utility.Utility;
 import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
@@ -16,19 +14,9 @@ import discord4j.core.event.domain.message.MessageDeleteEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
 import discord4j.core.event.domain.message.ReactionRemoveAllEvent;
 import discord4j.core.event.domain.message.ReactionRemoveEvent;
-import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.*;
-import discord4j.core.object.reaction.Reaction;
 import discord4j.core.object.reaction.ReactionEmoji;
-import discord4j.rest.http.client.ClientException;
-import discord4j.rest.json.response.ErrorResponse;
-import discord4j.rest.util.Permission;
-import discord4j.rest.util.PermissionSet;
-
-import java.util.*;
-
-import static java.util.stream.Collectors.toList;
 
 public class SorakaBot {
 
@@ -36,7 +24,7 @@ public class SorakaBot {
 	private static User self;
 
 	private static DiscordLogger logger;
-	private static JoinChannelHandler joinChannelHandler;
+	private static RoleAssignHandler roleAssignHandler;
 
 	//the client
 	private static GatewayDiscordClient client;
@@ -53,7 +41,7 @@ public class SorakaBot {
 		MessageChannel logChannel = (MessageChannel) BotUtility.getGuildChannelByName("soraka_bot_log", dieLolMains);
 		logger = new DiscordLogger(logChannel);
 
-		joinChannelHandler = new JoinChannelHandler(logger, client);
+		roleAssignHandler = new RoleAssignHandler(logger, client);
 
 		onReady();
 		onReactionAdd();
@@ -77,7 +65,7 @@ public class SorakaBot {
 					ReactionEmoji emoji = event.getEmoji();
 					Member member = event.getMember().get();
 					Message message = event.getMessage().block();
-					joinChannelHandler.reactionAdded(emoji, member, message);
+					roleAssignHandler.reactionAdded(emoji, member, message);
 				});
 	}
 
@@ -92,7 +80,7 @@ public class SorakaBot {
 					Guild guild = event.getGuild().block();
 					Member member = guild.getMemberById(event.getUserId()).block();
 
-					joinChannelHandler.reactionRemoved(emoji, member, message);
+					roleAssignHandler.reactionRemoved(emoji, member, message);
 				});
 	}
 
@@ -105,7 +93,7 @@ public class SorakaBot {
 					MessageChannel channel = event.getChannel().block();
 					//this is to check if a person removed the reactions from the joinMessage
 					//if so then the joinMessage can't be found anymore (no reactions) so create a new one
-					joinChannelHandler.ifAbsentCreateJoinMessage(channel);
+					roleAssignHandler.ifAbsentCreateJoinMessage(channel);
 				});
 	}
 
@@ -115,7 +103,7 @@ public class SorakaBot {
 	private static void onGuildEvent() {
 		client.getEventDispatcher().on(GuildCreateEvent.class)
 				.subscribe(event -> {
-					joinChannelHandler.createJoinChannel(event.getGuild());
+					roleAssignHandler.createJoinChannel(event.getGuild());
 				});
 	}
 
@@ -130,7 +118,7 @@ public class SorakaBot {
 					//the bot just saves its user data
 					self = event.getSelf();
 
-					joinChannelHandler.checkJoinReactions();
+					roleAssignHandler.checkJoinReactions();
 				});
 	}
 
@@ -151,7 +139,7 @@ public class SorakaBot {
 						if(!currentName.equals(oldName)){
 							logger.log("Renamed the bot from **" + oldName + "** to **" + currentName + "**", guild);
 							//update the JoinMessage of the guild
-							joinChannelHandler.updateJoinMessage(guild);
+							roleAssignHandler.updateJoinMessage(guild);
 						}
 					}
 				});
@@ -166,7 +154,7 @@ public class SorakaBot {
 					MessageChannel channel = event.getChannel().block();
 					//check if the message deleted was the joinMessage of the joinChannel
 					//if so then just create it again
-					joinChannelHandler.ifAbsentCreateJoinMessage(channel);
+					roleAssignHandler.ifAbsentCreateJoinMessage(channel);
 				});
 	}
 
@@ -178,9 +166,9 @@ public class SorakaBot {
 				.subscribe(event ->{
 					//check if the channel deleted was a joinChannel, if so then create a new joinChannel
 					GuildMessageChannel joinChannel = event.getChannel();
-					if(joinChannelHandler.getJoinChannels().remove(joinChannel)){
+					if(roleAssignHandler.getJoinChannels().remove(joinChannel)){
 						Guild guild = joinChannel.getGuild().block();
-						joinChannelHandler.createJoinChannel(guild);
+						roleAssignHandler.createJoinChannel(guild);
 						logger.log("joinChannel created", guild);
 					}
 				});
