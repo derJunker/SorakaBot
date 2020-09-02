@@ -1,5 +1,9 @@
 package bot.utility;
 
+/**
+ * this class models a description,
+ * it contains a long and short version, but both dont have to exist
+ */
 public class Description {
 	private String versionLong;
 	private String versionShort;

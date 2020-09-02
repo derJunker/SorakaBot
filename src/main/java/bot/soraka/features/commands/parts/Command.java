@@ -9,8 +9,11 @@ import java.util.List;
 
 public class Command {
 
+	//the method the command executes
 	private Executable command;
+	//a list of methods which all have to be true, that the command can be executed
 	private List<CommandRequirement> requirements;
+	//the description of what the command does
 	private Description description;
 
 
@@ -26,6 +29,10 @@ public class Command {
 		this.description = description;
 	}
 
+	/**
+	 * this method executes the command if the requirements are true
+	 * @param message the message where the command is described
+	 */
 	public void execute(Message message){
 		//first check if all the requirements are met
 		for (CommandRequirement requirement : requirements) {

@@ -90,13 +90,23 @@ public class BotUtility {
 
 	}
 
-	public static void spongebobMeme(MessageCreateEvent createEvent){
+	/**
+	 * this method sends back a message with alternating case
+	 * @param message Message which gets sent back
+	 */
+	public static void spongebobMeme(Message message){
 		//getting the content of the message
-		String content = createEvent.getMessage().getContent();
+		String content = message.getContent();
 		content = Utility.toAltCase(content);
-		createEvent.getMessage().getChannel().block().createMessage(content).block();
+		message.getChannel().block().createMessage(content).block();
 	}
 
+	/**
+	 * compares the guildIds of 2 guilds
+	 * @param g1 -
+	 * @param g2 -
+	 * @return returns if they are the same
+	 */
 	public static boolean sameGuildId(Guild g1, Guild g2){
 		return Objects.equals(g1.getId(), g2.getId());
 	}

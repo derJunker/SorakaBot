@@ -99,6 +99,11 @@ public class MemManager {
 		}
 	}
 
+	/**
+	 * this loads the prefixes for each guild
+	 * @param client the client
+	 * @return returns the map of prefixes
+	 */
 	public static Map<Guild, String> loadPrefixes(GatewayDiscordClient client){
 		try{
 			String filePath = RES_FOLDER + PREFIXES;
@@ -181,6 +186,10 @@ public class MemManager {
 		}
 	}
 
+	/**
+	 * saves the map of prefix for each guild
+	 * @param prefixes the map of the prefix for each guild
+	 */
 	public static void savePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
 		try {
 			//fist convert the map
@@ -263,6 +272,11 @@ public class MemManager {
 		return convertedJoinChannels;
 	}
 
+	/**
+	 * serializes the prefix map
+	 * @param prefixes the prefix for each guild
+	 * @return returns the serialized form of the map (turns the guild into the guildId)
+	 */
 	private static Map<String, String> serializePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
 		final Map<String, String> convertedPrefixes = new HashMap<>();
 		//putting every channel into the map with its guild
@@ -376,6 +390,11 @@ public class MemManager {
 		return joinChannels;
 	}
 
+	/**
+	 * gets the map of guilds from a map of guildIds
+	 * @param prefixGuildIds the map
+	 * @return returns the map of guilds with their prefixes
+	 */
 	private static Map<Guild, String> deserializePrefixes(Map<String, String> prefixGuildIds, GatewayDiscordClient client){
 		//now converting it into a list of channels
 		Map<Guild, String> prefixes = new HashMap<>();

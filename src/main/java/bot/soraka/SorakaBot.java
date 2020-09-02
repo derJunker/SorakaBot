@@ -194,6 +194,8 @@ public class SorakaBot {
 	}
 
 
+	//getter &setter
+
 	public static GatewayDiscordClient getClient() {
 		return client;
 	}
