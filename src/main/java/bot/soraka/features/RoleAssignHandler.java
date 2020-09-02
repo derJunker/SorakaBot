@@ -103,7 +103,9 @@ public class RoleAssignHandler {
 			return;
 		}
 		//the permissions of the bot
-		allowed = PermissionSet.of(Permission.VIEW_CHANNEL, Permission.ADD_REACTIONS, Permission.SEND_MESSAGES, Permission.READ_MESSAGE_HISTORY, Permission.MANAGE_MESSAGES);
+		allowed = PermissionSet.of(	Permission.VIEW_CHANNEL, Permission.ADD_REACTIONS,
+									Permission.SEND_MESSAGES, Permission.READ_MESSAGE_HISTORY,
+									Permission.MANAGE_MESSAGES);
 		denied = PermissionSet.none();
 		//now saving the allowed and denied messages
 		PermissionOverwrite botPermissions = PermissionOverwrite.forRole(role.getId(), allowed, denied);
@@ -151,7 +153,10 @@ public class RoleAssignHandler {
 	}
 
 	/**
-	 * this method finds the method with all
+	 * this method finds the method out of a (assumed) joinChannel
+	 * the criteria of a joinMessage are:
+	 * the message was sent from this bot
+	 * the message has all needed emojis as reactions on it
 	 * @param channel the channel where the joinMessage should be
 	 * @return the message or null if not found
 	 */
@@ -165,23 +170,29 @@ public class RoleAssignHandler {
 		//which will be used to check if a message is the join message, by checking if the message
 		//as all the guildEmojis
 		Map<String, Role> emojiGuildRoles = emojiRoles.get(guild);
+		//check if there are no emojiroles,
+		//if so maybe they didn't load so link them
 		if(emojiGuildRoles == null) {
 			linkEmojisToRoles();
 			emojiGuildRoles = emojiRoles.get(guild);
+			//now if they are stil no emojiRoles, then the server has none
 			if(emojiGuildRoles == null)
 				emojiGuildRoles = new HashMap<>();
 		}
+		//getting all the emojis of a guild, which are used for roles
+		//these are needed to tell if the channel has a joinMessage
+		//to match the criteria
 		List<String> guildEmojis = Utility.getKeys(emojiGuildRoles);
 		Message joinMessage = messages.stream()
-				.filter(message -> BotUtility.sameUser(message.getAuthor().get(), SorakaBot.getSelf()))
-				.filter(message -> {
+				.filter(message -> BotUtility.sameUser(message.getAuthor().get(), SorakaBot.getSelf())) //first criteria -> the message from the bot
+				.filter(message -> { //second criteria -> the message has the right emojis on it
 					//getting all the raw strings of the emojis on the message
 					List<String> messageEmojis = message.getReactions()
 							.stream()
-							.filter(reaction -> reaction.getEmoji().asUnicodeEmoji().isPresent())
-							.map(reaction -> reaction.getEmoji().asUnicodeEmoji().get().getRaw())
+							.filter(reaction -> reaction.getEmoji().asUnicodeEmoji().isPresent()) //get all unicode reactions only
+							.map(reaction -> reaction.getEmoji().asUnicodeEmoji().get().getRaw()) //only the string representations of them
 							.collect(toList());
-					return messageEmojis.containsAll(guildEmojis);
+					return messageEmojis.containsAll(guildEmojis);									//now if this list contains all the needed emojis its a joinMsg
 				})
 				.findFirst().orElse(null);
 		return joinMessage;
@@ -217,12 +228,10 @@ public class RoleAssignHandler {
 	 * @param guild the guild where the joinChannel is
 	 */
 	public void updateJoinMessage(Guild guild) {
-		//getting the joinChannel
-		GuildMessageChannel joinChannel = findJoinChannel(guild);
-		if(joinChannel == null)
-			return;
-
-		Message joinMessage = findJoinMessage(joinChannel);
+		//first finding the joinMessage of the guild
+		//and check if it was found
+		Message joinMessage = findJoinMessage(guild);
+		//well if it was found edit the content of the message to an updated version of itself
 		if(joinMessage != null) {
 			//updating the message to the correct one
 			joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
@@ -237,11 +246,11 @@ public class RoleAssignHandler {
 		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
 
 		String botNameInGuild = BotUtility.getNameInGuild(guild.getMemberById(SorakaBot.getSelf().getId()).block());
-		String content = "Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
-				"This is the join-channel, where you can choose your Roles!\n" +
-				"Depending on which roles you choose you unlock different voice and text channels.\n" +
-				"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
-				"Possible roles to choose from are:\n";
+		String content = 	"Welcome to **" + guild.getName() + "** :wave_tone3:,\n" +
+							"This is the join-channel, where you can choose your Roles!\n" +
+							"Depending on which roles you choose you unlock different voice and text channels.\n" +
+							"Note if this bot (**" + botNameInGuild + " [BOT]**) isn't online it could take a while until you get your role!\n" +
+							"Possible roles to choose from are:\n";
 		if(guildEmojiRoles != null)
 			for(Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()){
 				content += entry.getKey() + ": for the **" + entry.getValue().getName() + "** role\n";
@@ -260,8 +269,22 @@ public class RoleAssignHandler {
 	 * @param msg this is the message
 	 */
 	private void addRoleEmojis(Message msg){
-		msg.addReaction(ReactionEmoji.unicode(GAMER_EMOJI)).subscribe();
-		msg.addReaction(ReactionEmoji.unicode(STUDENT_EMOJI)).subscribe();
+		Optional<Guild> optGuild = msg.getGuild().blockOptional();
+		if(optGuild.isPresent()){
+			Guild guild = optGuild.get();
+			//getting the emojis
+			Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+			//making sure everything is correctly linked
+			if(guildEmojiRoles == null) {
+				linkEmojisToRoles();
+				guildEmojiRoles = emojiRoles.get(guild);
+				if(guildEmojiRoles == null)
+					return;
+
+			}
+			//now adding the reactions to the message
+			guildEmojiRoles.forEach((emoji, role) -> msg.addReaction(ReactionEmoji.unicode(emoji)).subscribe());
+		}
 	}
 
 	/**

@@ -1,6 +1,6 @@
 package bot.utility;
 
-import discord4j.core.event.domain.message.MessageCreateEvent;
+import bot.soraka.SorakaBot;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;
@@ -12,15 +12,6 @@ import discord4j.rest.util.PermissionSet;
 import java.util.*;
 
 public class BotUtility {
-	/**
-	 * this method checks if a member and a user have the same name and discriminator
-	 * @param user		the user
-	 * @param member	the member to compare to
-	 * @return			returns if they have the same user
-	 */
-	public static boolean sameUser(User user, Member member){
-		return member.getUsername().equals(user.getUsername()) && member.getDiscriminator().equals(user.getDiscriminator());
-	}
 
 	/**
 	 * this method checks if a user and a user have the same name and discriminator
@@ -34,7 +25,7 @@ public class BotUtility {
 
 	/**
 	 * this method removes all permissions from all GuildChannels for a role
-	 * @param role this role will have no permissions afterwars
+	 * @param role this role will have no permissions afterwards
 	 */
 	public static void denyAllChannels(Role role){
 		//first get the guild
@@ -49,10 +40,10 @@ public class BotUtility {
 	 * this method finds the first Channel of a guild by its name
 	 * @param name the name of the channel
 	 * @param guild the guild
-	 * @return
+	 * @return the found channel, or null
 	 */
 	public static GuildChannel getGuildChannelByName(String name, Guild guild){
-		return guild.getChannels().toStream().filter(channel -> channel.getName().equals(name)).findFirst().get();
+		return guild.getChannels().toStream().filter(channel -> channel.getName().equals(name)).findFirst().orElse(null);
 	}
 
 	/**
@@ -152,5 +143,26 @@ public class BotUtility {
 	 */
 	public static String getNameInGuild(Member member){
 		return member.getNickname().orElse(member.getUsername());
+	}
+
+	/**
+	 * checks if the bot changed the name
+	 * @param current the current state of the bot
+	 * @param old the old state of the bot
+	 * @return returns if a namechange between those two members occured
+	 */
+	public static boolean botNameChanged(Member current, Member old){
+		//check if the member updated was the bot
+		if(BotUtility.sameUser(SorakaBot.getSelf(), current)) {
+			Guild guild = current.getGuild().block();
+			//now check if the update was a rename
+			String currentName = BotUtility.getNameInGuild(current);
+			String oldName = BotUtility.getNameInGuild(old);
+			if(!currentName.equals(oldName)){
+				SorakaBot.getLogger().log("Renamed the bot from **" + oldName + "** to **" + currentName + "**", guild);
+				return true;
+			};
+		}
+		return false;
 	}
 }
