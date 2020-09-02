@@ -1,10 +1,9 @@
-package Bot.Utility;
+package bot.utility;
 
-import discord4j.common.util.Snowflake;
-import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildChannel;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.http.client.ClientException;
@@ -124,5 +123,24 @@ public class BotUtility {
 		}
 
 
+	}
+
+	/**
+	 * checks if a message was sent in a guild or via DM
+	 * @param message the message to be checked
+	 * @return if this wasn't a dm
+	 */
+	public static boolean inGuild(Message message){
+		MessageChannel channel = message.getChannel().block();
+		return !channel.getType().equals(Channel.Type.DM);
+	}
+
+	/**
+	 * this method gets the string how the member is called in his guild (either his nickname or username
+	 * @param member the member to get the name from
+	 * @return returns his name
+	 */
+	public static String getNameInGuild(Member member){
+		return member.getNickname().orElse(member.getUsername());
 	}
 }
