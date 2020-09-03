@@ -44,6 +44,8 @@ public class SorakaBot {
 
 		commandHandler = new CommandHandler(logger, client);
 		roleAssignHandler = new RoleAssignHandler(logger, client);
+		//adding the commands
+		commandHandler.addCommands(roleAssignHandler.getCommands());
 
 		initEvents();
 

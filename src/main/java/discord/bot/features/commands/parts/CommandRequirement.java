@@ -1,8 +1,10 @@
 package discord.bot.features.commands.parts;
 
 import discord.utility.BotUtility;
+import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Message;
+import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.Permission;
 
 import java.util.Arrays;
@@ -84,6 +86,49 @@ public interface CommandRequirement {
 							}
 							return result;
 						};
+	}
+
+	/**
+	 * checks if the message has the right amount of arguments
+	 * @param segments the expected amount of arguments
+	 * @return returns if it has the right amount
+	 */
+	static CommandRequirement correctSyntaxSegmentAmount (int segments){
+		return message -> {
+
+			String content = message.getContent();
+			//splitting the command by its spaces
+			//the first one is the command itself, the second should be the prefix
+			String[] contentSegments = content.split(" ");
+			//before assigning the new prefix, check if there are the right amount of segments (if so the syntax isn't uphold)
+			boolean result = contentSegments.length == segments;
+			if(!result){
+				MessageChannel channel = message.getChannel().block();
+				channel.createMessage("SyntaxError, too many or missing arguments, use the **help** command for information").block();
+			}
+			return result;
+		};
+	}
+	/**
+	 * checks if the message has one of the right amount of arguments
+	 * @param possibleSegments the expected amount of arguments
+	 * @return returns if it has the right amount
+	 */
+	static CommandRequirement correctSyntaxSegmentAmount (int... possibleSegments){
+		return message -> {
+
+			String content = message.getContent();
+			//splitting the command by its spaces
+			//the first one is the command itself, the second should be the prefix
+			String[] contentSegments = content.split(" ");
+			//before assigning the new prefix, check if there is the right amount of segments (if so the syntax isn't uphold)
+			boolean result = Arrays.stream(possibleSegments).anyMatch(segment -> segment == contentSegments.length);
+			if(!result){
+				MessageChannel channel = message.getChannel().block();
+				channel.createMessage("SyntaxError, too many or missing arguments, use the **help** command for information").block();
+			}
+			return result;
+		};
 	}
 
 }

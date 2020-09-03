@@ -127,8 +127,8 @@ public class CommandHandler {
 		Description description;
 
 		//adding the ping command
-		//no requirements needed
-		requirements = new LinkedList<>();
+		//only syntax requirements
+		requirements = List.of(CommandRequirement.correctSyntaxSegmentAmount(1));
 		//it just replies pong
 		executable =  message -> {
 			MessageChannel channel = message.getChannel().block();
@@ -138,7 +138,8 @@ public class CommandHandler {
 		addCommand("ping", executable, description);
 
 
-		requirements = new LinkedList<>();
+		//only syntax requirements
+		requirements = List.of(CommandRequirement.correctSyntaxSegmentAmount(1));
 		description = new Description("A more hands on approach for help");
 		executable = message ->{
 			MessageChannel channel = message.getChannel().block();
@@ -147,12 +148,15 @@ public class CommandHandler {
 		addCommand("Hilfeeee", executable, description);
 
 		//adding the prefix command
-		//there are two requirements for this command
+		//there are three requirements for this command
 		//the user has to send he message from a guildChannel
 		//the user has to have the permission MANAGE_SERVER
+		//and the syntax requirement, which is in this case 2 segments, so "!prefix $newPref"
+		requirements = new LinkedList<>();
 		requirements.add(CommandRequirement.IN_GUILD);
 		//for the next requirement you can assume the requirements before that are true
 		requirements.add(CommandRequirement.hasPermission(Permission.MANAGE_GUILD));
+		requirements.add(CommandRequirement.correctSyntaxSegmentAmount(2));
 		executable = message ->{
 			Guild guild = message.getGuild().block();
 			String prefix = prefixes.get(guild);
@@ -162,27 +166,22 @@ public class CommandHandler {
 			//splitting the command by its spaces
 			//the first one is the command itself, the second should be the prefix
 			String[] contentSegments = content.split(" ");
-			//before assigning the new prefix, check if there are more than 2 segments (if so the syntax isn't uphold
-			if(contentSegments.length != 2){
-				channel.createMessage("Wrong usage of this command, see " + prefix + "help for help").block();
-				return;
-			}
-			logger.log("Changed Prefix from: **" + prefix + "** to: **" + contentSegments[1] + "**");
 
 			//now if there are only two arguments the second should adjust the prefix
 			prefix = contentSegments[1];
 			channel.createMessage("Okay, from now on the prefix is: **" + prefix + "**").block();
 			//finally store the new Prefix first in the prefix map and then save prefixes
 			prefixes.put(guild, prefix);
+			logger.log("Changed Prefix from: **" + prefix + "** to: **" + contentSegments[1] + "**");
 			MemManager.savePrefixes(prefixes, client);
 		};
 		description = new Description("it changes the prefix for commands: syntax **!prefix $newPrefix**, no spaces in the newPrefix!");
 		addCommand("prefix", executable, requirements, description);
 
 		//adding the help command
-		//no requirements needed
 		//it gives out every command with a description
-		requirements = new LinkedList<>();
+		//only syntax requirements
+		requirements = List.of(CommandRequirement.correctSyntaxSegmentAmount(1));
 		description = new Description("gives out every possible command, with a description");
 		executable = message -> {
 			//first get the prefix of the guild or the default if not in the guild

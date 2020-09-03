@@ -17,7 +17,7 @@ public class MemManager {
 
 	//filenames
 	private static final String JOIN_CHANNEL_NAMES = "join.channels";
-	private static final String EMOJI_ROLE_NAMES = "emoji.reactors";
+	private static final String EMOJI_ROLE_NAMES = "emoji.roles";
 	private static final String EMOJI_REACTOR_NAMES = "emoji.reactors";
 	private static final String PREFIXES = "pre.fixes";
 
@@ -70,7 +70,7 @@ public class MemManager {
 			return emojiRoles;
 		}
 		catch(IOException | ClassNotFoundException e){
-			return null;
+			return new HashMap<>();
 		}
 	}
 
@@ -95,7 +95,7 @@ public class MemManager {
 			return deserializeEmojiReactors(emojiReactorIds, client);
 		}
 		catch(IOException | ClassNotFoundException e){
-			return null;
+			return new HashMap<>();
 		}
 	}
 

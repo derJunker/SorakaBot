@@ -1,8 +1,12 @@
 package discord.bot.features;
 
+import discord.bot.features.commands.parts.Command;
+import discord.bot.features.commands.parts.CommandRequirement;
+import discord.bot.features.commands.parts.Executable;
 import discord.logger.DiscordLogger;
 import discord.bot.SorakaBot;
 import discord.utility.BotUtility;
+import discord.utility.Description;
 import discord.utility.MemManager;
 import discord.utility.Utility;
 import discord4j.core.GatewayDiscordClient;
@@ -33,7 +37,10 @@ public class RoleAssignHandler {
 	//this list stores all channels which are so called joinChannels
 	//these channels are unique to a server, and there the bot writes a message
 	//used to self assign roles via reactions
-	private List<GuildMessageChannel> joinChannels = new LinkedList<>();
+	private List<GuildMessageChannel> joinChannels;
+
+	//the map names and their commands for role assigning
+	private Map<String, Command> commands;
 
 	//emojis
 	//currently hardcoded
@@ -45,13 +52,14 @@ public class RoleAssignHandler {
 	private final static String STUDENT_NAME = "Student";
 
 	//this map stores links between emojis and the associated roles, by Guild
-	private final Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
+	private final Map<Guild, Map<String, Role>> emojiRoles;
 
 	public RoleAssignHandler(DiscordLogger logger, GatewayDiscordClient client){
 		this.logger = logger;
 		this.client = client;
 		joinChannels = MemManager.loadJoinChannels(client);
-		linkEmojisToRoles();
+		emojiRoles = MemManager.loadEmojiRoles(client);
+		initCommands();
 	}
 
 	//----------------------------------------joinChannel-related----------------------------------------
@@ -170,7 +178,7 @@ public class RoleAssignHandler {
 		//which will be used to check if a message is the join message, by checking if the message
 		//as all the guildEmojis
 		Map<String, Role> emojiGuildRoles = emojiRoles.get(guild);
-		//check if there are no emojiroles,
+		//check if there are no emojiRoles,
 		//if so maybe they didn't load so link them
 		if(emojiGuildRoles == null) {
 			linkEmojisToRoles();
@@ -504,11 +512,157 @@ public class RoleAssignHandler {
 				});
 	}
 
+	/**
+	 * this method links an Emoji to a certain role of a guild
+	 * @param rawEmoji the raw string of the emoji
+	 * @param role the role in the guild, where the link will be created
+	 */
+	 private void linkEmojiToRole(String rawEmoji, Role role){
+		Guild guild = role.getGuild().block();
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+		if(guildEmojiRoles == null)
+			guildEmojiRoles = new HashMap<>();
+		guildEmojiRoles.put(rawEmoji, role);
+		emojiRoles.put(guild, guildEmojiRoles);
+	}
+
 	//--------------------------------------end: reaction-related----------------------------------------
+
+	//--------------------------------------role-assign-commands----------------------------------------
+
+	/**
+	 * this method fills in all the commands for the role assigning
+	 */
+	private void initCommands(){
+		commands = new HashMap<>();
+		//adding the different commands
+		addCommandAddRole();
+	}
+
+	/**
+	 * this helper method adds the command addRole to the list of commands
+	 * name is a bit odd, but you add the "addRole" command
+	 */
+	private void addCommandAddRole(){
+		//adding a new role to the assignable roles
+		//the requirements are:
+		//syntax: !addRole [-n] $roleName $emoji
+		//the -n tag is for adding a role, which doesn't exist so the bot creates it
+		//the message has to be sent in a guild
+		//the member has to have the Manage_Guild permission
+		CommandRequirement syntax = CommandRequirement.correctSyntaxSegmentAmount(3, 4);
+		CommandRequirement inGuild = CommandRequirement.IN_GUILD;
+		CommandRequirement controlOverBot = CommandRequirement.hasPermission(Permission.MANAGE_GUILD);
+		List<CommandRequirement> requirements = List.of(syntax, inGuild, controlOverBot);
+
+		Description description = new Description("you can add a new role to the self-assignable roles");
+
+		Executable executable = message -> {
+			//definitely has a guild
+			Guild guild = message.getGuild().block();
+			MessageChannel channel = message.getChannel().block();
+			//splitting the content up into the arguments
+			//it is assumed it has the right arguments, because its a requirement
+			String content = message.getContent();
+			String[] segments = content.split(" ");
+			//now you have to check which argument is which, and this differs depending if it has 3 or 4 segments
+
+			boolean hasTag = segments.length == 4;
+			//so the name and the emoji are moved one to the right if there is a tag
+			//so i made an index which "points" at the name of the role, and this would be normally (3 segments) at index 1
+			//but if there is a tag (4 segments) then the index is 2
+			int roleNameIndex = 1;
+			//so add one if the segments are 4
+			//also store the tag
+			String tag = "";
+			if(hasTag)
+				tag = segments[roleNameIndex++];
+
+			String roleName = segments[roleNameIndex++];
+			String rawEmoji = segments[roleNameIndex];
+
+			Role role;
+			//so if there was a tag first interpret it
+			//(currently its only 1, to create a new role)
+			if(hasTag) {
+				//if it is said task then the bot should create a new role with this name
+				//but i don't want 2 roles with the same name, so check if there is already a role
+				//with this name
+				if(tag.equals("-" + "n")) {
+					//search for a role, and if it was found, tell the member, that you used the existing role
+					//if not go on with making a new role
+					role = BotUtility.getRoleByName(roleName, guild);
+					if(role != null) {
+						channel.createMessage("There is already a Role with this name, so i used that").block();
+					}
+					//if there was no such role
+					else {
+						//creating the role
+						role = guild.createRole(roleSpec -> roleSpec.setName(roleName)).block();
+					}
+				}
+				//if the tag was something different then stop the command
+				else {
+					channel.createMessage("Wrong tag, only allowed: \"-n\"").block();
+					return;
+				}
+			}
+			//if there was no tag then find the role mentioned
+			//if it is not found then stop the command
+			else {
+				role = BotUtility.getRoleByName(roleName, guild);
+				if(role == null) {
+					channel.createMessage("No role found with that name, use the tag -n to create a new Role").block();
+					return;
+				}
+			}
+			//now the role has been successfully found/created
+			//you also have to check if the emoji is a valid unicode emoji
+			//there isn't really a method for it, so i just add the emoji as a reaction, and check if there is an error
+			ReactionEmoji.Unicode emoji = ReactionEmoji.unicode(rawEmoji);
+			try{
+				//getting the joinMessage of the guild
+				Message joinMessage = findJoinMessage(guild);
+				if(joinMessage == null)
+					return;
+				//now adding the role with the associated emoji
+				joinMessage.addReaction(emoji).block();
+			}
+			//if its not an emoji
+			catch (ClientException e){
+				channel.createMessage("Invalid Emoji! Either it's a custom emoji or an invalid one. Only standard unicode emoji!").block();
+				return;
+			}
+
+			//now the emoji has been added, so create a link to the role
+			linkEmojiToRole(emoji.getRaw(), role);
+			//then update the joinMessage, to include the description of the role
+			updateJoinMessage(guild);
+			//last save the emojiRoles
+			MemManager.saveEmojiRoles(emojiRoles);
+
+		};
+
+		commands.put("addRole", new Command(requirements, executable, description));
+	}
+
+	/**
+	 * this helper method adds the command removeRole to the list of commands
+	 * name is a bit odd, but you add the "removeRole" command
+	 */
+	private void addRemoveRoleCommand(){
+
+	}
+
+	//--------------------------------------end: role-assign-commands----------------------------------------
 
 	//----------------------------------------getter&setter----------------------------------------
 
 	public List<GuildMessageChannel> getJoinChannels(){
 		return joinChannels;
+	}
+
+	public Map<String, Command> getCommands(){
+		return commands;
 	}
 }

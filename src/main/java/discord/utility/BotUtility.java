@@ -75,9 +75,10 @@ public class BotUtility {
 	 */
 	public static Role getRoleByName(String roleName, Guild guild){
 
-		return guild.getRoles()													//get all roles of the guild
+		return guild.getRoles().toStream()								//get all roles of the guild
 				.filter(role -> role.getName().equals(roleName))//then just look at the roles which have the right name
-				.blockFirst();									//bc it could be more than one just get the first one
+				.findFirst()									//bc it could be more than one just get the first one
+				.orElse(null);							//if there is none return null
 
 	}
 
