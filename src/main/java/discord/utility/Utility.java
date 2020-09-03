@@ -1,4 +1,4 @@
-package bot.utility;
+package discord.utility;
 
 import java.util.ArrayList;
 import java.util.LinkedList;

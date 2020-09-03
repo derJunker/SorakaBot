@@ -1,6 +1,6 @@
-package bot.logger;
+package discord.logger;
 
-import bot.utility.BotUtility;
+import discord.utility.BotUtility;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Message;

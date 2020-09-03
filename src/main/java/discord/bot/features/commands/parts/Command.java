@@ -1,7 +1,7 @@
-package bot.soraka.features.commands.parts;
+package discord.bot.features.commands.parts;
 
-import bot.soraka.SorakaBot;
-import bot.utility.Description;
+import discord.bot.SorakaBot;
+import discord.utility.Description;
 import discord4j.core.object.entity.Message;
 
 import java.util.ArrayList;

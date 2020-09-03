@@ -1,4 +1,4 @@
-package bot.soraka.features.commands.parts;
+package discord.bot.features.commands.parts;
 
 import discord4j.core.object.entity.Message;
 

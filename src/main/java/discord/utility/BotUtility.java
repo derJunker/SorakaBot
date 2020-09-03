@@ -1,6 +1,6 @@
-package bot.utility;
+package discord.utility;
 
-import bot.soraka.SorakaBot;
+import discord.bot.SorakaBot;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;

@@ -1,4 +1,4 @@
-package bot.utility;
+package discord.utility;
 
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;

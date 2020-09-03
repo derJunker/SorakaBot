@@ -1,2 +1,2 @@
 # SorakaBot
-A discord4j bot
+A discord4j discord

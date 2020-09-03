@@ -1,10 +1,10 @@
-package bot.soraka.features;
+package discord.bot.features;
 
-import bot.logger.DiscordLogger;
-import bot.soraka.SorakaBot;
-import bot.utility.BotUtility;
-import bot.utility.MemManager;
-import bot.utility.Utility;
+import discord.logger.DiscordLogger;
+import discord.bot.SorakaBot;
+import discord.utility.BotUtility;
+import discord.utility.MemManager;
+import discord.utility.Utility;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.Guild;

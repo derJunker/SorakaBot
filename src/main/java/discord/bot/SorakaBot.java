@@ -1,10 +1,9 @@
-package bot.soraka;
+package discord.bot;
 
-import bot.logger.DiscordLogger;
-import bot.soraka.features.RoleAssignHandler;
-import bot.soraka.features.commands.CommandHandler;
-import bot.utility.BotUtility;
-import bot.utility.MemManager;
+import discord.logger.DiscordLogger;
+import discord.bot.features.RoleAssignHandler;
+import discord.bot.features.commands.CommandHandler;
+import discord.utility.BotUtility;
 import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;

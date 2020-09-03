@@ -1,12 +1,12 @@
-package bot.soraka.features.commands;
+package discord.bot.features.commands;
 
-import bot.logger.DiscordLogger;
-import bot.soraka.features.commands.parts.Command;
-import bot.soraka.features.commands.parts.CommandRequirement;
-import bot.soraka.features.commands.parts.Executable;
-import bot.utility.BotUtility;
-import bot.utility.Description;
-import bot.utility.MemManager;
+import discord.logger.DiscordLogger;
+import discord.bot.features.commands.parts.Command;
+import discord.bot.features.commands.parts.CommandRequirement;
+import discord.bot.features.commands.parts.Executable;
+import discord.utility.BotUtility;
+import discord.utility.Description;
+import discord.utility.MemManager;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Message;

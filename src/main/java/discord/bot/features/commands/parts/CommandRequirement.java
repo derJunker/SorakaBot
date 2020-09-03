@@ -1,13 +1,11 @@
-package bot.soraka.features.commands.parts;
+package discord.bot.features.commands.parts;
 
-import bot.utility.BotUtility;
+import discord.utility.BotUtility;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Message;
-import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.Permission;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * this interface is a single method interface

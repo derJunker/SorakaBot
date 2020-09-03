@@ -1,4 +1,4 @@
-package bot.utility;
+package discord.utility;
 
 /**
  * this class models a description,
