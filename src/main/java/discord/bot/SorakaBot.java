@@ -83,6 +83,7 @@ public class SorakaBot {
 	private static void onReactionAdd() {
 		client.getEventDispatcher().on(ReactionAddEvent.class)
 				.subscribe(event -> {
+					logger.log("ReactionAddEvent triggered", event.getMessage().block());
 					Optional<Guild> optGuild = event.getGuild().blockOptional();
 					if(optGuild.isPresent()) {
 						//get the emoji as a string
@@ -100,6 +101,7 @@ public class SorakaBot {
 	private static void onReactionRemove(){
 		client.getEventDispatcher().on(ReactionRemoveEvent.class)
 				.subscribe(event -> {
+					logger.log("ReactionRemoveEvent triggered", event.getMessage().block());
 					Optional<Guild> optGuild = event.getGuild().blockOptional();
 					if(optGuild.isPresent()) {
 						Message message = event.getMessage().block();
@@ -119,7 +121,7 @@ public class SorakaBot {
 		client.getEventDispatcher().on(ReactionRemoveAllEvent.class)
 				.subscribe(event -> {
 					MessageChannel channel = event.getChannel().block();
-					//this is to check if a person removed the reactions from the joinMessage
+					//this is to check if a person (not the bot) removed the reactions from the joinMessage
 					//if so then the joinMessage can't be found anymore (no reactions) so create a new one
 					roleAssignHandler.ifAbsentCreateJoinMessage(channel);
 				});

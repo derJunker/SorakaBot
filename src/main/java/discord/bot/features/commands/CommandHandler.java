@@ -28,7 +28,7 @@ public class CommandHandler {
 	public CommandHandler(DiscordLogger logger, GatewayDiscordClient client){
 		this.logger = logger;
 		this.client = client;
-		availableCommands = new HashMap<>();
+		availableCommands = new LinkedHashMap<>();
 		prefixes = MemManager.loadPrefixes(client);
 		fillUpPrefixMissingGuilds();
 		addMiscCommands();
@@ -175,7 +175,7 @@ public class CommandHandler {
 			logger.log("Changed Prefix from: **" + prefix + "** to: **" + contentSegments[1] + "**");
 			MemManager.savePrefixes(prefixes, client);
 		};
-		description = new Description("it changes the prefix for commands: syntax **!prefix $newPrefix**, no spaces in the newPrefix!");
+		description = new Description("it changes the prefix for commands. Syntax: **!prefix $newPrefix**, no spaces in the newPrefix!");
 		addCommand("prefix", executable, requirements, description);
 
 		//adding the help command

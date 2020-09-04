@@ -227,7 +227,7 @@ public class RoleAssignHandler {
 	private void createJoinMessage(GuildMessageChannel joinChannel){
 		Guild guild = joinChannel.getGuild().block();
 		final String content = makeJoinMessageContent(guild);
-		joinChannel.createMessage(content).subscribe(message -> addRoleEmojis(message));
+		setToRoleEmojis(joinChannel.createMessage(content).block());
 	}
 
 	/**
@@ -244,6 +244,7 @@ public class RoleAssignHandler {
 			//updating the message to the correct one
 			joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
 		}
+		setToRoleEmojis(joinMessage);
 	}
 
 	/**
@@ -276,7 +277,7 @@ public class RoleAssignHandler {
 	 * it adds the emojis used to assign roles to a message
 	 * @param msg this is the message
 	 */
-	private void addRoleEmojis(Message msg){
+	private void setToRoleEmojis(Message msg){
 		Optional<Guild> optGuild = msg.getGuild().blockOptional();
 		if(optGuild.isPresent()){
 			Guild guild = optGuild.get();
@@ -291,7 +292,23 @@ public class RoleAssignHandler {
 
 			}
 			//now adding the reactions to the message
-			guildEmojiRoles.forEach((emoji, role) -> msg.addReaction(ReactionEmoji.unicode(emoji)).subscribe());
+			//and i will also removing anything else after that
+			//so during this foreach i will fill a list only the keys
+			final List<String> roleEmojis = new LinkedList<>();
+			guildEmojiRoles.forEach((emoji, role) -> {
+				roleEmojis.add(emoji);
+				msg.addReaction(ReactionEmoji.unicode(emoji)).block();
+			});
+
+			//also removing every emoji which is not a roleEmoji
+			//so first get all unicode reactions
+			//and then get all reactions which are not in the list
+			//and for all of them remove the reaction
+			msg.getReactions().stream()
+					.map(reaction -> reaction.getEmoji())
+					.filter(reaction -> reaction.asUnicodeEmoji().isPresent())
+					.filter(emoji -> !roleEmojis.contains(emoji.asUnicodeEmoji().get().getRaw()))
+					.forEach(emoji -> msg.removeReactions(emoji).block());
 		}
 	}
 
@@ -431,7 +448,6 @@ public class RoleAssignHandler {
 		}
 		//now assign the role to the user
 		member.addRole(role.getId()).block();
-
 		MemManager.saveEmojiReactors(getCurrentEmojiReactors());
 		logger.log("Assigned role: **" + role.getName() + "** to: **" + BotUtility.getNameInGuild(member) + "**", guild);
 	}
@@ -490,26 +506,7 @@ public class RoleAssignHandler {
 	 * this method links all the emojis to the right roles
 	 */
 	private void linkEmojisToRoles(){
-		//for every guild add the roles
-		client.getGuilds().toStream()
-				.forEach(guild -> {
-					HashMap<String, Role> guildEmojiRoles = new HashMap<>();
-					//do it both for the gamer role as well as the student role
-					//first get the role with the right name
-					Role gamer = BotUtility.getRoleByName(GAMER_NAME, guild);
-					if(gamer != null){
-						//then add the right emoji to the role into the map
-						guildEmojiRoles.put(GAMER_EMOJI, gamer);
-					}
-
-					//first get the role with the right name
-					Role student = BotUtility.getRoleByName(STUDENT_NAME, guild);
-					if(student != null){
-						//then add the right emoji to the role into the map
-						guildEmojiRoles.put(STUDENT_EMOJI, student);
-					}
-					emojiRoles.put(guild, guildEmojiRoles);
-				});
+		emojiRoles.putAll(MemManager.loadEmojiRoles(client));
 	}
 
 	/**
@@ -526,6 +523,44 @@ public class RoleAssignHandler {
 		emojiRoles.put(guild, guildEmojiRoles);
 	}
 
+	/**
+	 * removes the link from a emoji to a role
+	 * @param role the entry to be deleted
+	 */
+	private boolean removeLinkEmojiToRole(Role role){
+		Guild guild = role.getGuild().block();
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+		if(guildEmojiRoles == null)
+			guildEmojiRoles = new HashMap<>();
+
+		//now going through the map, and checking if any entry has the role as its value
+		String linkedEmoji = hasEmojiRoleLink(role);
+		return guildEmojiRoles.remove(linkedEmoji) != null;
+
+	}
+
+	/**
+	 * checks if a role has an entry in the emojiRoles
+	 * @param role the role to check
+	 * @return the emoji or an empty String ("")
+	 */
+	private String hasEmojiRoleLink(Role role){
+		Guild guild = role.getGuild().block();
+		Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+		if(guildEmojiRoles == null)
+			guildEmojiRoles = new HashMap<>();
+
+		//now going through the map, and checking if any entry has the role as its value
+		String linkedEmoji = null;
+		for (Map.Entry<String, Role> entry : guildEmojiRoles.entrySet()) {
+			if(entry.getValue().getId().equals(role.getId())) {
+				linkedEmoji = entry.getKey();
+				break;
+			}
+		}
+		return linkedEmoji;
+	}
+
 	//--------------------------------------end: reaction-related----------------------------------------
 
 	//--------------------------------------role-assign-commands----------------------------------------
@@ -537,11 +572,12 @@ public class RoleAssignHandler {
 		commands = new HashMap<>();
 		//adding the different commands
 		addCommandAddRole();
+		addCommandRemoveRole();
+		addCommandChangeEmojiRole();
 	}
 
 	/**
 	 * this helper method adds the command addRole to the list of commands
-	 * name is a bit odd, but you add the "addRole" command
 	 */
 	private void addCommandAddRole(){
 		//adding a new role to the assignable roles
@@ -555,7 +591,7 @@ public class RoleAssignHandler {
 		CommandRequirement controlOverBot = CommandRequirement.hasPermission(Permission.MANAGE_GUILD);
 		List<CommandRequirement> requirements = List.of(syntax, inGuild, controlOverBot);
 
-		Description description = new Description("you can add a new role to the self-assignable roles");
+		Description description = new Description("you can add a new role to the self-assignable roles. Syntax: **!addRole [-n] $role $emoji**");
 
 		Executable executable = message -> {
 			//definitely has a guild
@@ -599,6 +635,7 @@ public class RoleAssignHandler {
 					else {
 						//creating the role
 						role = guild.createRole(roleSpec -> roleSpec.setName(roleName)).block();
+						logger.log("Created role for self-assigning", guild);
 					}
 				}
 				//if the tag was something different then stop the command
@@ -633,25 +670,165 @@ public class RoleAssignHandler {
 				channel.createMessage("Invalid Emoji! Either it's a custom emoji or an invalid one. Only standard unicode emoji!").block();
 				return;
 			}
+			//now you have to check if there is already a link for the emoji, if so deny the command
+			Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+			if(guildEmojiRoles != null && guildEmojiRoles.get(rawEmoji) != null){
+				channel.createMessage("The Emoji has already a role associated with it!").block();
+				return;
+			}
 
 			//now the emoji has been added, so create a link to the role
 			linkEmojiToRole(emoji.getRaw(), role);
 			//then update the joinMessage, to include the description of the role
+			updateJoinMessage(guild);
+			channel.createMessage("Successfully added role **" + roleName + "** to the assignable roles with the emoji " + rawEmoji).block();
+			logger.log("Added role **" + roleName + "** to the assignable roles with the emoji " + rawEmoji);
+			//last save the emojiRoles
+			MemManager.saveEmojiRoles(emojiRoles);
+
+		};
+
+		commands.put("addEmoji", new Command(requirements, executable, description));
+	}
+
+	/**
+	 * this helper method adds the command removeRole to the list of commands
+	 */
+	private void addCommandRemoveRole(){
+		/*
+		removing a role to the assignable roles
+		the requirements are:
+		syntax: !removeRole $roleName
+		the message has to be sent in a guild
+		the member has to have the Manage_Guild permission
+		*/
+		CommandRequirement syntax = CommandRequirement.correctSyntaxSegmentAmount(2);
+		CommandRequirement inGuild = CommandRequirement.IN_GUILD;
+		CommandRequirement controlOverBot = CommandRequirement.hasPermission(Permission.MANAGE_GUILD);
+		List<CommandRequirement> requirements = List.of(syntax, inGuild, controlOverBot);
+
+		Description description = new Description("you can remove a role from the self-assignable roles (doesn't delete the role). " +
+													"Syntax: **!removeRole $role**");
+
+		Executable executable = message -> {
+			//definitely has a guild
+			Guild guild = message.getGuild().block();
+			MessageChannel channel = message.getChannel().block();
+			//splitting the content up into the arguments
+			//it is assumed it has the right arguments, because its a requirement
+			String content = message.getContent();
+			String[] segments = content.split(" ");
+
+			String roleName = segments[1];
+
+			Role role = BotUtility.getRoleByName(roleName, guild);
+
+			if(role == null) {
+				channel.createMessage("The role doesn't exist!").block();
+				return;
+			}
+
+			boolean successfulRemove = removeLinkEmojiToRole(role);
+			if(!successfulRemove) {
+				channel.createMessage("the role wasn't self-assignable").block();
+				return;
+			}
+			//feedback for the user
+			channel.createMessage("the role " + roleName + " was successfully removed from the self-assigning").block();
+			logger.log("The role " + roleName + " was successfully removed from the self-assigning", message);
+
+			//then update the joinMessage, to remove the description of the role
 			updateJoinMessage(guild);
 			//last save the emojiRoles
 			MemManager.saveEmojiRoles(emojiRoles);
 
 		};
 
-		commands.put("addRole", new Command(requirements, executable, description));
+		commands.put("removeRole", new Command(requirements, executable, description));
 	}
 
 	/**
-	 * this helper method adds the command removeRole to the list of commands
-	 * name is a bit odd, but you add the "removeRole" command
+	 * this helper method adds the command changeEmoji to the list of commands
 	 */
-	private void addRemoveRoleCommand(){
+	private void addCommandChangeEmojiRole(){
+		/*
+		editing the emoji of a role to the assignable roles
+		the requirements are:
+		syntax: !editRole $roleName $emoji
+		the message has to be sent in a guild
+		the member has to have the Manage_Guild permission
+		*/
+		CommandRequirement syntax = CommandRequirement.correctSyntaxSegmentAmount(3);
+		CommandRequirement inGuild = CommandRequirement.IN_GUILD;
+		CommandRequirement controlOverBot = CommandRequirement.hasPermission(Permission.MANAGE_GUILD);
+		List<CommandRequirement> requirements = List.of(syntax, inGuild, controlOverBot);
 
+		Description description = new Description("You can change the emoji of a Role. Syntax: **!changeEmoji $role $emoji**");
+
+		Executable executable = message -> {
+			//definitely has a guild
+			Guild guild = message.getGuild().block();
+			MessageChannel channel = message.getChannel().block();
+			//splitting the content up into the arguments
+			//it is assumed it has the right arguments, because its a requirement
+			String content = message.getContent();
+			String[] segments = content.split(" ");
+
+			String roleName = segments[1];
+			String rawNewEmoji = segments[2];
+
+			Role role = BotUtility.getRoleByName(roleName, guild);
+
+			if (role == null) {
+				channel.createMessage("The role doesn't exist!").block();
+				return;
+			}
+			//now check if there is an entry for the role in the emojiRoles
+			String rawOldEmoji = hasEmojiRoleLink(role);
+			if(rawOldEmoji == null){
+				channel.createMessage("The role is not self-assignable").block();
+				return;
+			}
+
+			//now the role has been successfully found
+			//you also have to check if the emoji is a valid unicode emoji
+			//there isn't really a method for it, so i just add the emoji as a reaction, and check if there is an error
+			ReactionEmoji.Unicode newEmoji = ReactionEmoji.unicode(rawNewEmoji);
+			try{
+				//getting the joinMessage of the guild
+				Message joinMessage = findJoinMessage(guild);
+				if(joinMessage == null)
+					return;
+				//now adding the reaction
+				joinMessage.addReaction(newEmoji).block();
+				//there is no need to remove the old one, this gets done in the updateJoinMessage() method
+			}
+			//if its not an emoji
+			catch (ClientException e){
+				channel.createMessage("Invalid Emoji! Either it's a custom emoji or an invalid one. Only standard unicode emoji!").block();
+				return;
+			}
+
+			//now you have to check if there is already a link for the emoji, if so deny the command
+			Map<String, Role> guildEmojiRoles = emojiRoles.get(guild);
+			if(guildEmojiRoles.get(rawNewEmoji) != null){
+				channel.createMessage("The Emoji has already a role associated with it!").block();
+				return;
+			}
+
+			guildEmojiRoles.put(newEmoji.getRaw(), role);
+			guildEmojiRoles.remove(rawOldEmoji);
+			//then update the joinMessage, to remove the description of the role
+			updateJoinMessage(guild);
+			//give feedback to the user
+			channel.createMessage("Changed the emoji for the role **" + roleName + "** from " + rawOldEmoji + " to " + rawNewEmoji).block();
+			logger.log("Changed the emoji for the role **" + roleName + "** from " + rawOldEmoji + " to " + rawNewEmoji, message);
+			//last save the emojiRoles
+			MemManager.saveEmojiRoles(emojiRoles);
+
+		};
+
+		commands.put("changeEmoji", new Command(requirements, executable, description));
 	}
 
 	//--------------------------------------end: role-assign-commands----------------------------------------

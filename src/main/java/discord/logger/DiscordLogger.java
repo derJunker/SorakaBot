@@ -17,7 +17,7 @@ public class DiscordLogger {
 	}
 
 	public void log(String message){
-		logChannel.createMessage(message).block();
+		logChannel.createMessage(message).subscribe();
 	}
 
 	public void log(String message, Guild guild){
@@ -42,4 +42,5 @@ public class DiscordLogger {
 	public void log(ReadyEvent event){
 		log("ReadyEvent triggered, bot is now online");
 	}
+
 }
