@@ -1,6 +1,7 @@
 package discord.utility;
 
 import discord.bot.SorakaBot;
+import discord4j.common.util.Snowflake;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.entity.channel.Channel;
@@ -9,6 +10,7 @@ import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.http.client.ClientException;
 import discord4j.rest.util.PermissionSet;
 
+import java.time.Instant;
 import java.util.*;
 
 public class BotUtility {
@@ -107,23 +109,21 @@ public class BotUtility {
 
 	/**
 	 * this method gets all the messages of a channel
-	 * @param channel the channel where the messages should get returned
+	 * @param channel the channel where the messages are from returned
 	 * @return returns all messages in a channel, or an empty list if there are none
 	 */
 	public static List<Message> getMessagesOfChannel(MessageChannel channel){
-		//first get the last message of the channel
 		try {
-			Message lastMessage = channel.getLastMessage().block();
+			//get the last message
+			Snowflake now = Snowflake.of(Instant.now());
 			//get all messages before the last message and then add the last message to it
-			List<Message> messages = channel.getMessagesBefore(lastMessage.getId()).collectList().block();
-			messages.add(lastMessage);
+			List<Message> messages = channel.getMessagesBefore(now).collectList().block();
 
 			return messages;
 		}catch(ClientException | NullPointerException e){
 			//if there was no last message then the channel is empty so return an empty list
 			return new ArrayList<>();
 		}
-
 
 	}
 
