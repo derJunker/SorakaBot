@@ -144,11 +144,11 @@ public class SorakaBot {
 	private static void onReady(){
 		client.getEventDispatcher().on(ReadyEvent.class)
 				.subscribe(event -> {
-					logger.log(event);
 					//the bot just saves its user data
 					self = event.getSelf();
 
 					roleAssignHandler.checkJoinReactions();
+					logger.log(event);
 				});
 	}
 

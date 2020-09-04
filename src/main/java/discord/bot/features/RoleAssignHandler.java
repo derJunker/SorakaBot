@@ -42,15 +42,6 @@ public class RoleAssignHandler {
 	//the map names and their commands for role assigning
 	private Map<String, Command> commands;
 
-	//emojis
-	//currently hardcoded
-	private final static String GAMER_EMOJI = "\uD83C\uDFAE";
-	private final static String STUDENT_EMOJI = "\uD83D\uDCDA";
-
-	//the names of the roles
-	private final static String GAMER_NAME = "Elite-Gamer";
-	private final static String STUDENT_NAME = "Student";
-
 	//this map stores links between emojis and the associated roles, by Guild
 	private final Map<Guild, Map<String, Role>> emojiRoles;
 
