@@ -1,5 +1,6 @@
 package discord.bot;
 
+import discord.bot.features.playlists.PlaylistHandler;
 import discord.logger.DiscordLogger;
 import discord.bot.features.RoleAssignHandler;
 import discord.bot.features.commands.CommandHandler;
@@ -24,8 +25,11 @@ public class SorakaBot {
 	private static User self;
 
 	private static DiscordLogger logger;
-	private static RoleAssignHandler roleAssignHandler;
 	private static CommandHandler commandHandler;
+	//the different features
+	private static RoleAssignHandler roleAssignHandler;
+	private static PlaylistHandler playlistHandler;
+
 
 	//the client
 	private static GatewayDiscordClient client;
@@ -44,6 +48,7 @@ public class SorakaBot {
 
 		commandHandler = new CommandHandler(logger, client);
 		roleAssignHandler = new RoleAssignHandler(logger, client);
+		playlistHandler = new PlaylistHandler(logger);
 		//adding the commands
 		commandHandler.addCommands(roleAssignHandler.getCommands());
 
@@ -74,12 +79,16 @@ public class SorakaBot {
 		client.getEventDispatcher().on(MessageCreateEvent.class)
 				.subscribe(event -> {
 					Message message = event.getMessage();
+					MessageChannel channel = message.getChannel().block();
+					//if the message was sent by this bot ignore it
+					if(BotUtility.sameUser(self, message.getAuthor().get())){
+						return;
+					}
 					//execute the command of the message if it is one
 					//if not tell the user its an unknown command
-					if(commandHandler.execute(message)){
-						MessageChannel channel = message.getChannel().block();
+					if(!commandHandler.execute(message)){
 						channel.createMessage("Unknown Command! use the \"help\" command for all the commands").block();
-					};
+					}
 				});
 	}
 
