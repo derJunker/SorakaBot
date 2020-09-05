@@ -6,6 +6,7 @@ import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Role;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
+import discord4j.rest.http.client.ClientException;
 
 import java.io.*;
 import java.util.*;
@@ -67,6 +68,8 @@ public class MemManager {
 			ois.close();
 			//now deserialize it, so make it the list of joinChannels
 			Map<Guild, Map<String, Role>> emojiRoles = deserializeEmojiRoles(emojiRoleIds, client);
+			//actually save the list again because it could be that some things were removed
+			MemManager.saveEmojiRoles(emojiRoles);
 			return emojiRoles;
 		}
 		catch(IOException | ClassNotFoundException e){
@@ -91,8 +94,11 @@ public class MemManager {
 				emojiReactorIds = new HashMap<>();
 			}
 			ois.close();
+			Map<Guild, Map<String, List<Member>>> emojiReactors = deserializeEmojiReactors(emojiReactorIds, client);
+			//actually save the list again because it could be that some things were removed
+			MemManager.saveEmojiReactors(emojiReactors);
 			//now deserialize it, so make it the list of joinChannels
-			return deserializeEmojiReactors(emojiReactorIds, client);
+			return emojiReactors;
 		}
 		catch(IOException | ClassNotFoundException e){
 			return new HashMap<>();
@@ -300,26 +306,28 @@ public class MemManager {
 		Map<Guild, Map<String, Role>> emojiRoles = new HashMap<>();
 		emojiRoleIds.forEach((guildId, guildEmojiRolesIds) -> {
 			//get the find the guild by the id
-			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
-			if(optionalGuild.isEmpty()){
-				return;
+			try {
+				Guild guild = client.getGuildById(Snowflake.of(guildId)).block();
+				//now go through every emoji of this guild, and find the role for it
+				//and add them to the map below
+				final Map<String, Role> guildEmojiRoles = new HashMap<>();
+				guildEmojiRolesIds.forEach((rawEmoji, roleID) ->{
+					//finding the role, by first checking if it even exists
+					Optional<Role> optionalRole = guild.getRoleById(Snowflake.of(roleID)).blockOptional();
+					if(optionalRole.isEmpty()){
+						return;
+					}
+					Role role = optionalRole.get();
+					//now put this role into the converted map
+					guildEmojiRoles.put(rawEmoji, role);
+				});
+				//now the guildEmojiRoles map is filled, so add it to the emojiRoles map
+				emojiRoles.put(guild, guildEmojiRoles);
 			}
-			final Guild guild = optionalGuild.get();
-			//now go through every emoji of this guild, and find the role for it
-			//and add them to the map below
-			final Map<String, Role> guildEmojiRoles = new HashMap<>();
-			guildEmojiRolesIds.forEach((rawEmoji, roleID) ->{
-				//finding the role, by first checking if it even exists
-				Optional<Role> optionalRole = guild.getRoleById(Snowflake.of(roleID)).blockOptional();
-				if(optionalRole.isEmpty()){
-					return;
-				}
-				Role role = optionalRole.get();
-				//now put this role into the converted map
-				guildEmojiRoles.put(rawEmoji, role);
-			});
-			//now the guildEmojiRoles map is filled, so add it to the emojiRoles map
-			emojiRoles.put(guild, guildEmojiRoles);
+			catch(ClientException ignored){
+				//if the guild was removed
+			}
+
 		});
 		return emojiRoles;
 	}
@@ -336,31 +344,34 @@ public class MemManager {
 		Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
 		emojiRoleIds.forEach((guildId, guildEmojiReactorIds) -> {
 			//get the find the guild by the id
-			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
-			if(optionalGuild.isEmpty()){
-				return;
-			}
-			final Guild guild = optionalGuild.get();
-			//now go through every emoji of this guild, and find the role for it
-			//and add them to the map below
-			final Map<String, List<Member>> guildEmojiReactors = new HashMap<>();
-			guildEmojiReactorIds.forEach((rawEmoji, memberIds) ->{
-				//getting the members and for each adding them
-				final List<Member> reactors = new LinkedList<>();
-				memberIds.forEach(memberId -> {
-					Optional<Member> optionalMember = guild.getMemberById(Snowflake.of(memberId)).blockOptional();
-					if(optionalMember.isEmpty()){
-						return;
-					}
-					Member member = optionalMember.get();
-					//now put this role into the converted map
-					reactors.add(member);
-				});
-				guildEmojiReactors.put(rawEmoji, reactors);
+			//get the find the guild by the id
+			try {
+				Guild guild = client.getGuildById(Snowflake.of(guildId)).block();
+				//now go through every emoji of this guild, and find the role for it
+				//and add them to the map below
+				final Map<String, List<Member>> guildEmojiReactors = new HashMap<>();
+				guildEmojiReactorIds.forEach((rawEmoji, memberIds) ->{
+					//getting the members and for each adding them
+					final List<Member> reactors = new LinkedList<>();
+					memberIds.forEach(memberId -> {
+						Optional<Member> optionalMember = guild.getMemberById(Snowflake.of(memberId)).blockOptional();
+						if(optionalMember.isEmpty()){
+							return;
+						}
+						Member member = optionalMember.get();
+						//now put this role into the converted map
+						reactors.add(member);
+					});
+					guildEmojiReactors.put(rawEmoji, reactors);
 
-			});
-			//now the guildEmojiRoles map is filled, so add it to the emojiReactors map
-			emojiReactors.put(guild, guildEmojiReactors);
+				});
+				//now the guildEmojiRoles map is filled, so add it to the emojiReactors map
+				emojiReactors.put(guild, guildEmojiReactors);
+			}
+			catch(ClientException ignored){
+				//if the guild was removed
+			}
+
 		});
 		return emojiReactors;
 	}
@@ -375,16 +386,16 @@ public class MemManager {
 		//now converting it into a list of channels
 		List<GuildMessageChannel> joinChannels = new ArrayList<>();
 		joinChannelMap.forEach((guildId, channelId) -> {
-			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
-			if(optionalGuild.isEmpty()){
-				return;
+			try {
+				Guild guild = client.getGuildById(Snowflake.of(guildId)).block();
+				GuildMessageChannel joinChannel = (GuildMessageChannel) guild.getChannels().filter(channel -> channel.getId().equals(Snowflake.of(channelId))).blockFirst();
+
+				if(joinChannel != null)
+					joinChannels.add(joinChannel);
 			}
-			Guild guild = optionalGuild.get();
-
-			GuildMessageChannel joinChannel = (GuildMessageChannel) guild.getChannels().filter(channel -> channel.getId().equals(Snowflake.of(channelId))).blockFirst();
-
-			if(joinChannel != null)
-				joinChannels.add(joinChannel);
+			catch(ClientException ignored){
+				//if the guild was removed
+			}
 		});
 		//finally convert the channels into GuildMessage
 		return joinChannels;
@@ -399,13 +410,14 @@ public class MemManager {
 		//now converting it into a list of channels
 		Map<Guild, String> prefixes = new HashMap<>();
 		prefixGuildIds.forEach((guildId, prefix) -> {
-			Optional<Guild> optionalGuild = client.getGuildById(Snowflake.of(guildId)).blockOptional();
-			if(optionalGuild.isEmpty()){
-				return;
+			try {
+				Guild guild = client.getGuildById(Snowflake.of(guildId)).block();
+				prefixes.put(guild, prefix);
 			}
-			Guild guild = optionalGuild.get();
+			catch(ClientException ignored){
+				//if the guild was removed
+			}
 
-			prefixes.put(guild, prefix);
 		});
 		//finally convert the channels into GuildMessage
 		return prefixes;
