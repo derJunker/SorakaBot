@@ -73,7 +73,13 @@ public class SorakaBot {
 	private static void onMessageCreate(){
 		client.getEventDispatcher().on(MessageCreateEvent.class)
 				.subscribe(event -> {
-					commandHandler.execute(event.getMessage());
+					Message message = event.getMessage();
+					//execute the command of the message if it is one
+					//if not tell the user its an unknown command
+					if(commandHandler.execute(message)){
+						MessageChannel channel = message.getChannel().block();
+						channel.createMessage("Unknown Command! use the \"help\" command for all the commands").block();
+					};
 				});
 	}
 

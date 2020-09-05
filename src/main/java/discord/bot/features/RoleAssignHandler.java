@@ -234,8 +234,8 @@ public class RoleAssignHandler {
 		if(joinMessage != null) {
 			//updating the message to the correct one
 			joinMessage.edit(message -> message.setContent(makeJoinMessageContent(guild))).block();
+			setToRoleEmojis(joinMessage);
 		}
-		setToRoleEmojis(joinMessage);
 	}
 
 	/**
@@ -511,7 +511,6 @@ public class RoleAssignHandler {
 		if(guildEmojiRoles == null)
 			guildEmojiRoles = new HashMap<>();
 		guildEmojiRoles.put(rawEmoji, role);
-		emojiRoles.put(guild, guildEmojiRoles);
 	}
 
 	/**
@@ -669,7 +668,8 @@ public class RoleAssignHandler {
 			}
 
 			//now the emoji has been added, so create a link to the role
-			linkEmojiToRole(emoji.getRaw(), role);
+			linkEmojiToRole(rawEmoji, role);
+
 			//then update the joinMessage, to include the description of the role
 			updateJoinMessage(guild);
 			channel.createMessage("Successfully added role **" + roleName + "** to the assignable roles with the emoji " + rawEmoji).block();
