@@ -1,5 +1,6 @@
 package discord.utility;
 
+import discord.bot.features.playlists.Playlist;
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.entity.Guild;
@@ -130,6 +131,14 @@ public class MemManager {
 		}
 	}
 
+	/**
+	 * loads the list of playlists
+	 * @return
+	 */
+	public static List<Playlist> loadPlaylists(){
+		return new ArrayList<>();
+	}
+
 	//------------------------------------------------end: load-methods------------------------------------------------
 
 	//--------------------------------------------------save-methods--------------------------------------------------
@@ -208,6 +217,14 @@ public class MemManager {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	/**
+	 * saves the playlists in a file
+	 * @param playlists the list of playlists to be stored
+	 */
+	public static void savePlaylists(List<Playlist> playlists){
+
 	}
 
 	//--------------------------------------------------end: save-methods--------------------------------------------------
