@@ -51,6 +51,7 @@ public class SorakaBot {
 		playlistHandler = new PlaylistHandler(logger);
 		//adding the commands
 		commandHandler.addCommands(roleAssignHandler.getCommands());
+		commandHandler.addCommands(playlistHandler.getCommands());
 
 		initEvents();
 

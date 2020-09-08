@@ -18,10 +18,15 @@ public class MemManager {
 	private static final String RES_FOLDER = "src/main/resources/";
 
 	//filenames
+	//join feature
 	private static final String JOIN_CHANNEL_NAMES = "join.channels";
 	private static final String EMOJI_ROLE_NAMES = "emoji.roles";
 	private static final String EMOJI_REACTOR_NAMES = "emoji.reactors";
+	//for commands itself
 	private static final String PREFIXES = "pre.fixes";
+
+	//playlist feature
+	private static final String PLAYLIST_NAMES = "play.lists";
 
 	//--------------------------------------------------load-methods--------------------------------------------------
 
@@ -224,7 +229,15 @@ public class MemManager {
 	 * @param playlists the list of playlists to be stored
 	 */
 	public static void savePlaylists(List<Playlist> playlists){
-
+		try {
+			String fileName = RES_FOLDER + PLAYLIST_NAMES;
+			FileOutputStream fos = new FileOutputStream(fileName);
+			ObjectOutputStream oos = new ObjectOutputStream(fos);
+			oos.writeObject(playlists);
+			oos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	//--------------------------------------------------end: save-methods--------------------------------------------------

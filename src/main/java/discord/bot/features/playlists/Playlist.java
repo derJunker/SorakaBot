@@ -1,5 +1,6 @@
 package discord.bot.features.playlists;
 
+import discord4j.core.object.entity.User;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.Color;
 
@@ -14,6 +15,7 @@ public class Playlist {
 	//it stores the keyWords/links to which will be executed with the play command of Rythm
 	//it can either be urls to videos, or just a description
 	private final List<String> songs;
+
 
 	public Playlist(String name, List<String> songKeyWords){
 		this.name = name;
@@ -48,7 +50,7 @@ public class Playlist {
 		channel.createEmbed(embed -> {
 			embed.setTitle(name)
 					.setColor(Color.RED);
-			StringBuilder songListing = new StringBuilder("Songs: \n");
+			StringBuilder songListing = new StringBuilder();
 			for(int i = 0; i < songs.size(); i++){
 				String song = songs.get(i);
 				songListing.append("**" + i + "**: " + song + "\n");
@@ -56,5 +58,10 @@ public class Playlist {
 			embed.setDescription(songListing.toString());
 
 		}).block();
+	}
+
+	//getter & setter
+	public String getName(){
+		return name;
 	}
 }
