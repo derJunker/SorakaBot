@@ -1,5 +1,6 @@
 package discord.bot.features.commands.parts;
 
+import discord.bot.SorakaBot;
 import discord.utility.BotUtility;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
@@ -58,7 +59,7 @@ public interface CommandRequirement {
 			boolean result = author.getBasePermissions().block().containsAll(Arrays.asList(permissions));
 			if(!result){
 				CommandRequirement.errorMessage("Sorry " + BotUtility.getNameInGuild(author) +
-								", you have to have the permission: **\"" + permissions + "\"** to change the prefix of this bot"
+								", you have to have the permission: **\"" + permissions + "\"**  to execute this command!"
 						, message);
 			}
 			return result;
@@ -81,11 +82,35 @@ public interface CommandRequirement {
 							boolean result = author.getBasePermissions().block().contains(permission);
 							if(!result){
 								CommandRequirement.errorMessage("Sorry " + BotUtility.getNameInGuild(author) +
-												", you have to have the permission: **\"" + permission + "\"** to change the prefix of this bot"
+												", you have to have the permission: **\"" + permission + "\"** to execute this command!"
 										, message);
 							}
 							return result;
 						};
+	}
+
+	/**
+	 * returns a CommandRequirement, which checks if the bot has the right permission
+	 * it assumes you are on a guild
+	 * @param permission the permission to be met
+	 * @return returns a method(1 method interface) which where it checks if said permissions are met
+	 */
+	static CommandRequirement botHasPermission(final Permission permission){
+		return message -> {
+			//because its required that this message was sent in a guild
+			//i can assume there will be no error getting the author as a member
+			Guild guild = message.getGuild().block();
+			Member botMember = guild.getMemberById(SorakaBot.getSelf().getId()).block();
+			//checking if the author of the message has the permission to manage the guild
+			//this is the requirement to change the prefix
+			boolean result = botMember.getBasePermissions().block().contains(permission);
+			if(!result){
+				CommandRequirement.errorMessage("Sorry " + BotUtility.getNameInGuild(botMember) +
+								" has to have the permission: **\"" + permission + "\"**  to execute this command!"
+						, message);
+			}
+			return result;
+		};
 	}
 
 	/**

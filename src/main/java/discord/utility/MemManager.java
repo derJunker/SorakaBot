@@ -26,7 +26,7 @@ public class MemManager {
 	private static final String PREFIXES = "pre.fixes";
 
 	//playlist feature
-	private static final String PLAYLIST_NAMES = "play.lists";
+	private static final String PLAYLISTS = "play.lists";
 
 	//--------------------------------------------------load-methods--------------------------------------------------
 
@@ -141,7 +141,21 @@ public class MemManager {
 	 * @return
 	 */
 	public static List<Playlist> loadPlaylists(){
-		return new ArrayList<>();
+		try{
+			String filePath = RES_FOLDER + PLAYLISTS;
+			FileInputStream fis = new FileInputStream(filePath);
+			ObjectInputStream ois = new ObjectInputStream(fis);
+			//reading the map of guild-id
+			@SuppressWarnings("unchecked")
+			List<Playlist> playlists = (List<Playlist>) ois.readObject();
+
+			ois.close();
+			//now deserialize it, so make it the list of joinChannels
+			return playlists;
+		}
+		catch(IOException | ClassNotFoundException e){
+			return new ArrayList<>();
+		}
 	}
 
 	//------------------------------------------------end: load-methods------------------------------------------------
@@ -230,7 +244,7 @@ public class MemManager {
 	 */
 	public static void savePlaylists(List<Playlist> playlists){
 		try {
-			String fileName = RES_FOLDER + PLAYLIST_NAMES;
+			String fileName = RES_FOLDER + PLAYLISTS;
 			FileOutputStream fos = new FileOutputStream(fileName);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 			oos.writeObject(playlists);

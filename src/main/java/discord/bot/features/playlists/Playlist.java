@@ -1,14 +1,17 @@
 package discord.bot.features.playlists;
 
+import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.Color;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Playlist {
+public class Playlist implements Serializable {
 
+	private static final long serialVersionUID = 6633067407683597948L;
 	//the name of the playlist
 	private String name;
 
@@ -16,14 +19,18 @@ public class Playlist {
 	//it can either be urls to videos, or just a description
 	private final List<String> songs;
 
+	//you cant save the guild itself, bc you can't save/serialize a guild object
+	private String guildId;
 
-	public Playlist(String name, List<String> songKeyWords){
+
+	public Playlist(String name, List<String> songKeyWords, Guild guild){
 		this.name = name;
 		this.songs = songKeyWords;
+		this.guildId = guild.getId().asString();
 	}
 
-	public Playlist(String name){
-		this(name, new ArrayList<>());
+	public Playlist(String name, Guild guild){
+		this(name, new ArrayList<>(), guild);
 	}
 
 	/**
@@ -63,5 +70,9 @@ public class Playlist {
 	//getter & setter
 	public String getName(){
 		return name;
+	}
+
+	public String getGuildId(){
+		return guildId;
 	}
 }
