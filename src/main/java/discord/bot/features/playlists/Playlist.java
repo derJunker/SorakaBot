@@ -20,12 +20,12 @@ public class Playlist implements Serializable {
 	private final List<String> songs;
 
 	//you cant save the guild itself, bc you can't save/serialize a guild object
-	private String guildId;
+	private final String guildId;
 
 
-	public Playlist(String name, List<String> songKeyWords, Guild guild){
+	public Playlist(String name, List<String> urls, Guild guild){
 		this.name = name;
-		this.songs = songKeyWords;
+		this.songs = urls;
 		this.guildId = guild.getId().asString();
 	}
 
@@ -35,10 +35,10 @@ public class Playlist implements Serializable {
 
 	/**
 	 * adds a song to the playlist
-	 * @param keyPhrase the phrase which should be added
+	 * @param url the url which leads to a playable song
 	 */
-	public void add(String keyPhrase){
-		songs.add(keyPhrase);
+	public void add(String url){
+		songs.add(url);
 	}
 
 	public boolean remove(String keyPhrase){
@@ -53,7 +53,7 @@ public class Playlist implements Serializable {
 	 * displays the playlist as an embed message
 	 * @param channel the channel where to display it
 	 */
-	public void embedInformation(MessageChannel channel){
+	public void displayPlaylist(MessageChannel channel){
 		channel.createEmbed(embed -> {
 			embed.setTitle(name)
 					.setColor(Color.RED);
@@ -75,4 +75,6 @@ public class Playlist implements Serializable {
 	public String getGuildId(){
 		return guildId;
 	}
+
+
 }

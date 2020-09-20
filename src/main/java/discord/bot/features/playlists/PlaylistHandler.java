@@ -1,5 +1,6 @@
 package discord.bot.features.playlists;
 
+import discord.bot.SorakaBot;
 import discord.bot.features.commands.parts.Command;
 import discord.bot.features.commands.parts.CommandRequirement;
 import discord.bot.features.commands.parts.Executable;
@@ -7,29 +8,50 @@ import discord.logger.DiscordLogger;
 import discord.utility.BotUtility;
 import discord.utility.Description;
 import discord.utility.MemManager;
+import discord4j.common.util.Snowflake;
+import discord4j.core.GatewayDiscordClient;
+import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.Guild;
+import discord4j.core.object.entity.Member;
+import discord4j.core.object.entity.Role;
+import discord4j.core.object.entity.User;
+import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.GuildMessageChannel;
-import discord4j.core.object.entity.channel.MessageChannel;
+import discord4j.rest.http.client.ClientException;
 import discord4j.rest.util.Permission;
+import discord4j.rest.util.PermissionSet;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class PlaylistHandler {
 
 	private DiscordLogger logger;
+	private GatewayDiscordClient client;
 
 	private final List<Playlist> playlists;
 
+	//the list of commands and the string representation of it
 	private Map<String, Command> commands;
 
-	public PlaylistHandler(DiscordLogger logger){
-		playlists = MemManager.loadPlaylists();
-		this.logger = logger;
-		initCommands();
+	//the channels which are used to play playlists grouped by guild
+	//the guild is also stored in the channel (channel.getGuild())
+	//so the channels could be stored in a simple list
+	//you don't have to add a new Guild (and so a new channel)
+	//but you have to access the channel a lot when you only know the guild
+	//and i don't want to traverse a whole list to check which is the right channel
+	private final Map<Guild, GuildMessageChannel> musicChannels;
 
+	public PlaylistHandler(DiscordLogger logger, GatewayDiscordClient client){
+		//assigning the vars to params
+		this.logger = logger;
+		this.client = client;
+		//loading the saved vars
+		playlists = MemManager.loadPlaylists();
+		musicChannels = MemManager.loadMusicChannels(client);
+
+		//initializing all the commands
+		initCommands();
 	}
 
 	private void initCommands(){
@@ -120,6 +142,27 @@ public class PlaylistHandler {
 		};
 
 		commands.put(commandName, new Command(requirements, executable, description));
+	}
+
+	/**
+	 * adds the command to add a song (yt-url) to a playlist
+	 */
+	private void addCommandAddSongToPlaylist(){
+		//the name of the command
+		String name = "addSong";
+		//the syntax is !addSong $playlist $url
+		CommandRequirement syntax = CommandRequirement.correctSyntaxSegmentAmount(3);
+		//also the command only makes sense in a guild
+		CommandRequirement inGuild = CommandRequirement.IN_GUILD;
+		List<CommandRequirement> requirements = List.of(syntax, inGuild);
+
+		Description description = new Description("adds a new song to a playlist. Syntax: **!addSong $playlist $yt-url**");
+ 
+		Executable executable = message -> {
+
+		};
+
+		commands.put(name, new Command(requirements, executable, description));
 	}
 
 	//getter&setter

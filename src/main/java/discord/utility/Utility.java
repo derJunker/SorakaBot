@@ -45,10 +45,16 @@ public class Utility {
 	 */
 	public static <T> List<T> listDifference(List<T> a, List<T> b){
 		List<T> aCopy = new ArrayList<>(a);
-		b.stream().forEach(aCopy::remove);
+		b.forEach(aCopy::remove);
 		return aCopy;
 	}
 
+	/**
+	 * reverses a list
+	 * @param list the list which should be reversed, this list stays the same when method gets called
+	 * @param <T> -
+	 * @return the reversed list
+	 */
 	public static <T> List<T> reverseList(List<T> list){
 		List<T> reversed = new LinkedList<>();
 		for(int i = list.size()-1; i > -1; i--){
@@ -65,7 +71,7 @@ public class Utility {
 	 */
 	public static <T, V> List<T> getKeys(Map<T, V> map){
 		final List<T> list = new LinkedList<>();
-		map.entrySet().forEach(entry -> list.add(entry.getKey()));
+		map.forEach((key, value) -> list.add(key));
 		return list;
 	}
 }

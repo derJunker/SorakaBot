@@ -166,4 +166,17 @@ public class BotUtility {
 		}
 		return false;
 	}
+
+	/**
+	 * finds the integrated/managed role of a (supposed) bot
+	 * @param member the bot
+	 * @return the role or null if not found
+	 */
+	public static Role findManagedRole(Member member){
+		return member.getRoles()
+				.toStream()
+				.filter(Role::isManaged)
+				.findFirst()
+				.orElse(null);
+	}
 }
