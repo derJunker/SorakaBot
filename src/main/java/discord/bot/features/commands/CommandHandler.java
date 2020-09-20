@@ -97,7 +97,7 @@ public class CommandHandler {
 	/**
 	 * this method executes a command written in a message if there was one
 	 * @param message the message the command should be in
-	 * @return returns if a command has been executed
+	 * @return false if there was the prefix, but the command is unknown
 	 */
 	public boolean execute(Message message){
 		String content = message.getContent();
@@ -111,7 +111,11 @@ public class CommandHandler {
 				return true;
 			}
 		}
-		return false;
+		//so if the code comes here no command was executed,
+		//but if there was no intent of executing a command
+		//also return true
+		//there is no intent to do so if the message didn't start with the prefix
+		return !content.startsWith(prefix);
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package discord.utility;
 
+import discord.bot.features.playlists.Playlist;
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.entity.Guild;
@@ -17,10 +18,16 @@ public class MemManager {
 	private static final String RES_FOLDER = "src/main/resources/";
 
 	//filenames
+	//join feature
 	private static final String JOIN_CHANNEL_NAMES = "join.channels";
 	private static final String EMOJI_ROLE_NAMES = "emoji.roles";
 	private static final String EMOJI_REACTOR_NAMES = "emoji.reactors";
+	//for commands itself
 	private static final String PREFIXES = "pre.fixes";
+
+	//playlist feature
+	private static final String PLAYLISTS = "play.lists";
+	private static final String MUSIC_CHANNELS = "music.channels";
 
 	//--------------------------------------------------load-methods--------------------------------------------------
 
@@ -130,6 +137,51 @@ public class MemManager {
 		}
 	}
 
+	/**
+	 * loads the list of playlists
+	 * @return
+	 */
+	public static List<Playlist> loadPlaylists(){
+		try{
+			String filePath = RES_FOLDER + PLAYLISTS;
+			FileInputStream fis = new FileInputStream(filePath);
+			ObjectInputStream ois = new ObjectInputStream(fis);
+			//reading the map of guild-id
+			@SuppressWarnings("unchecked")
+			List<Playlist> playlists = (List<Playlist>) ois.readObject();
+
+			ois.close();
+			//now deserialize it, so make it the list of joinChannels
+			return playlists;
+		}
+		catch(IOException | ClassNotFoundException e){
+			return new ArrayList<>();
+		}
+	}
+
+	/**
+	 * loading the channels used for commanding the music bot
+	 * @return the map of Guilds linked to the GuildMessageChannel
+	 */
+	public static Map<Guild, GuildMessageChannel> loadMusicChannels(GatewayDiscordClient client){
+		try{
+			String filePath = RES_FOLDER + MUSIC_CHANNELS;
+			FileInputStream fis = new FileInputStream(filePath);
+			ObjectInputStream ois = new ObjectInputStream(fis);
+			//reading the map of guild-id
+			@SuppressWarnings("unchecked")
+			Map<String, String> serializedMusicChannels = (Map<String, String>) ois.readObject();
+			Map<Guild, GuildMessageChannel> deserializedMusicChannels = deserializeMusicChannels(serializedMusicChannels, client);
+
+			ois.close();
+			//now deserialize it, so make it the list of joinChannels
+			return deserializedMusicChannels;
+		}
+		catch(IOException | ClassNotFoundException e){
+			return new HashMap<>();
+		}
+	}
+
 	//------------------------------------------------end: load-methods------------------------------------------------
 
 	//--------------------------------------------------save-methods--------------------------------------------------
@@ -142,7 +194,7 @@ public class MemManager {
 		try {
 			//first convert the list into a map with the guild-id as key and the channel id as value,
 			//because the guild, and channel classes are not serializable
-			Map<String, String> convertedJoinChannels = serializeJoinChannels(joinChannels, client);
+			Map<String, String> convertedJoinChannels = serializeJoinChannels(joinChannels);
 
 			String fileName = RES_FOLDER + JOIN_CHANNEL_NAMES;
 			FileOutputStream fos = new FileOutputStream(fileName);
@@ -199,11 +251,47 @@ public class MemManager {
 	public static void savePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
 		try {
 			//fist convert the map
-			Map<String, String> convertedPrefixes = serializePrefixes(prefixes, client);
+			Map<String, String> convertedPrefixes = serializePrefixes(prefixes);
 			String fileName = RES_FOLDER + PREFIXES;
 			FileOutputStream fos = new FileOutputStream(fileName);
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 			oos.writeObject(convertedPrefixes);
+			oos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * saves the playlists in a file
+	 * @param playlists the list of playlists to be stored
+	 */
+	public static void savePlaylists(List<Playlist> playlists){
+		try {
+			String fileName = RES_FOLDER + PLAYLISTS;
+			FileOutputStream fos = new FileOutputStream(fileName);
+			ObjectOutputStream oos = new ObjectOutputStream(fos);
+			oos.writeObject(playlists);
+			oos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * this saves the map of guilds linked to their musicChannels
+	 * @param musicChannels the map to be saved
+	 */
+	public static void saveMusicChannels(Map<Guild, GuildMessageChannel> musicChannels, GatewayDiscordClient client){
+		try {
+			//first convert the list into a map with the guild-id as key and the channel id as value,
+			//because the guild, and channel classes are not serializable
+			Map<String, String> serializedMusicChannel = serializeMusicChannels(musicChannels);
+
+			String fileName = RES_FOLDER + MUSIC_CHANNELS;
+			FileOutputStream fos = new FileOutputStream(fileName);
+			ObjectOutputStream oos = new ObjectOutputStream(fos);
+			oos.writeObject(serializedMusicChannel);
 			oos.close();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -271,7 +359,7 @@ public class MemManager {
 	 * @param joinChannels List to be converted
 	 * @return returns the serializable map
 	 */
-	private static Map<String, String> serializeJoinChannels(List<GuildMessageChannel> joinChannels, GatewayDiscordClient client){
+	private static Map<String, String> serializeJoinChannels(List<GuildMessageChannel> joinChannels){
 		final Map<String, String> convertedJoinChannels = new HashMap<>();
 		//putting every channel into the map with its guild
 		joinChannels.forEach(channel -> convertedJoinChannels.put(channel.getGuildId().asString(), channel.getId().asString()));
@@ -283,13 +371,18 @@ public class MemManager {
 	 * @param prefixes the prefix for each guild
 	 * @return returns the serialized form of the map (turns the guild into the guildId)
 	 */
-	private static Map<String, String> serializePrefixes(Map<Guild, String> prefixes, GatewayDiscordClient client){
+	private static Map<String, String> serializePrefixes(Map<Guild, String> prefixes){
 		final Map<String, String> convertedPrefixes = new HashMap<>();
 		//putting every channel into the map with its guild
 		prefixes.forEach((guild, prefix) -> convertedPrefixes.put(guild.getId().asString(), prefix));
 		return convertedPrefixes;
 	}
 
+	private static Map<String, String> serializeMusicChannels(Map<Guild, GuildMessageChannel> musicChannels){
+		final Map<String, String> serializedMusicChannels = new HashMap<>();
+		musicChannels.forEach((guild, channel) -> serializedMusicChannels.put(guild.getId().asString(), channel.getId().asString()));
+		return serializedMusicChannels;
+	}
 	//-------------------------------------------------end: serialize-methods-------------------------------------------------
 
 	//--------------------------------------------------deserialize-methods--------------------------------------------------
@@ -421,6 +514,23 @@ public class MemManager {
 		});
 		//finally convert the channels into GuildMessage
 		return prefixes;
+	}
+
+	private static Map<Guild, GuildMessageChannel> deserializeMusicChannels(Map<String, String> serializedMusicChannels, GatewayDiscordClient client){
+		final Map<Guild, GuildMessageChannel> deserializedMusicChannels = new HashMap<>();
+		serializedMusicChannels.forEach((guildId, channelId) -> {
+			try {
+				//first finding the guild
+				Guild guild = client.getGuildById(Snowflake.of(guildId)).block();
+				GuildMessageChannel channel = (GuildMessageChannel) guild.getChannelById(Snowflake.of(channelId)).block();
+				deserializedMusicChannels.put(guild, channel);
+			}
+			catch(ClientException ignored){
+				//if the guild/channel wasn't found then don't add the entry
+			}
+
+		});
+		return deserializedMusicChannels;
 	}
 
 	//------------------------------------------------end: deserialize-methods------------------------------------------------

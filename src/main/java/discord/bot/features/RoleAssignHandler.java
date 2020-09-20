@@ -93,10 +93,7 @@ public class RoleAssignHandler {
 		Member botAsMember = SorakaBot.getSelf().asMember(guild.getId()).block();
 		//now get the integrated role, if for some reason there isn't one then stop the method
 		//the integrated role is found, by the attribute managed of a role which models exactly that
-		role = botAsMember.getRoles().toStream()
-				.filter(Role::isManaged)
-				.findFirst()
-				.orElse(null);
+		role = BotUtility.findManagedRole(botAsMember);
 		if(role == null){
 			logger.log("No integrated role found for the bot", guild);
 			return;
