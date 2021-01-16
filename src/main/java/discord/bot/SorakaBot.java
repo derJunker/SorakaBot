@@ -37,7 +37,7 @@ public class SorakaBot {
 	private static GatewayDiscordClient client;
 
 	public static void main(String[] args){
-		client = DiscordClientBuilder.create(args[0])
+		client = DiscordClientBuilder.create(System.getenv("BOT_TOKEN"))
 				.build()
 				.login()
 				.block();

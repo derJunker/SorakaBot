@@ -9,6 +9,7 @@ import discord.utility.BotUtility;
 import discord.utility.Description;
 import discord.utility.MemManager;
 import discord.utility.Utility;
+
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.PermissionOverwrite;
 import discord4j.core.object.entity.Guild;
@@ -447,6 +448,8 @@ public class RoleAssignHandler {
 	 * @return returns this map
 	 */
 	private Map<Guild, Map<String, List<Member>>> getCurrentEmojiReactors(){
+		if(true)
+		return new HashMap<>();
 		//first get every joinMessage
 		//then add for every message, for every emoji the reactor as an entry of the inner map
 		final Map<Guild, Map<String, List<Member>>> emojiReactors = new HashMap<>();
